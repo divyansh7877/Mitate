@@ -39,15 +39,17 @@
 - [x] Manage application state (e.g., using React Context or similar) to pass data between pages (query, status, result)
 
 ## 3. Backend Integration Preparation
-- [ ] Create `api` service module to handle requests
-- [ ] Define types/interfaces for:
-    - [ ] `PaperMetadata`
-    - [ ] `Summary`
-    - [ ] `GenerationStatus`
-    - [ ] `InfographicResult`
-- [ ] Mock API calls for:
-    - [ ] `POST /api/generate` (initiate generation)
-    - [ ] `GET /api/status/{id}` (poll status)
+- [x] Create `api` service module to handle requests (`src/lib/api.ts`)
+- [x] Define types/interfaces for:
+    - [x] `PaperMetadata`
+    - [x] `Summary`
+    - [x] `GenerationStatus`
+    - [x] `InfographicResult`
+- [x] Mock API calls for:
+    - [x] `POST /api/generate` (initiate generation)
+    - [x] `GET /api/status/{id}` (poll status)
+- [x] **Tests:** Unit tests for `api` module (including Appwrite function calls and mock fallbacks)
+- [x] Set up Appwrite Functions structure (`functions/` directory) with placeholder code for deployment.
 
 ## 4. End-to-End Testing
 - [x] Create a Playwright or Cypress test for the full user flow (Landing -> Loading -> Result) using mock data.
