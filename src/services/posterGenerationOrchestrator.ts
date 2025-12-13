@@ -16,20 +16,20 @@ import { FiboStructuredPromptBuilder } from "./fiboPromptBuilder";
 
 export class PosterGenerationOrchestrator {
   private fiboService: FiboService;
-  private falService: FalService;
+  private falService?: FalService; // Optional now
   private layoutEngine: LayoutEngine;
   private promptBuilder: FiboStructuredPromptBuilder;
 
   constructor(
     fiboService: FiboService,
-    falService: FalService,
-    layoutEngine: LayoutEngine,
-    promptBuilder: FiboStructuredPromptBuilder
+    falService?: FalService, // Optional parameter
+    layoutEngine?: LayoutEngine,
+    promptBuilder?: FiboStructuredPromptBuilder
   ) {
     this.fiboService = fiboService;
     this.falService = falService;
-    this.layoutEngine = layoutEngine;
-    this.promptBuilder = promptBuilder;
+    this.layoutEngine = layoutEngine || new LayoutEngine();
+    this.promptBuilder = promptBuilder || new FiboStructuredPromptBuilder();
   }
 
   /**
@@ -56,10 +56,10 @@ export class PosterGenerationOrchestrator {
 
       console.log(`[${requestId}] Layout calculated: ${layout.type}`);
 
-      // Stage 2: Optional - Generate layout previews with FAL
+      // Stage 2: Optional - Generate layout previews with FAL (if available)
       let layoutPreviews: string[] | undefined;
 
-      if (input.options?.include_layout_previews) {
+      if (this.falService && input.options?.include_layout_previews) {
         try {
           layoutPreviews = await this.falService.generateLayoutPreviews({
             concepts: input.summary.key_concepts,
@@ -77,12 +77,14 @@ export class PosterGenerationOrchestrator {
           );
           // Continue without previews
         }
+      } else if (input.options?.include_layout_previews) {
+        console.log(`[${requestId}] Skipping layout previews (FAL not available)`);
       }
 
-      // Stage 3: Optional - Generate icons for visual metaphors with FAL
+      // Stage 3: Optional - Generate icons for visual metaphors with FAL (if available)
       const status2: GenerationStatus = "generating_icons";
 
-      if (input.options?.generation_mode !== "fast") {
+      if (this.falService && input.options?.generation_mode !== "fast") {
         console.log(`[${requestId}] ${status2}`);
 
         try {
@@ -141,10 +143,10 @@ export class PosterGenerationOrchestrator {
 
       console.log(`[${requestId}] FIBO generation completed successfully`);
 
-      // Stage 6: Optional - Generate style variations with FAL
+      // Stage 6: Optional - Generate style variations with FAL (if available)
       let variations: StyleVariation[] | undefined;
 
-      if (input.options?.include_variations) {
+      if (this.falService && input.options?.include_variations) {
         const status4: GenerationStatus = "generating_variations";
         console.log(`[${requestId}] ${status4}`);
 
@@ -164,6 +166,8 @@ export class PosterGenerationOrchestrator {
           );
           // Continue without variations
         }
+      } else if (input.options?.include_variations) {
+        console.log(`[${requestId}] Skipping variations (FAL not available)`);
       }
 
       // Complete
@@ -203,8 +207,13 @@ export class PosterGenerationOrchestrator {
 
   /**
    * Generate a quick poster using only FAL (fallback or fast mode)
+   * Note: Requires FAL service to be configured
    */
   async generateFastMode(input: GenerationInput): Promise<GenerationOutput> {
+    if (!this.falService) {
+      throw new Error("FAL service is not configured. Fast mode is unavailable.");
+    }
+
     const requestId = this.generateRequestId();
     const startTime = Date.now();
 
@@ -266,10 +275,15 @@ export class PosterGenerationOrchestrator {
 
   /**
    * Generate only style variations for an existing poster
+   * Note: Requires FAL service to be configured
    */
   async generateVariationsOnly(
     baseImageUrl: string
   ): Promise<StyleVariation[]> {
+    if (!this.falService) {
+      throw new Error("FAL service is not configured. Variations unavailable.");
+    }
+
     console.log("Generating style variations for existing poster");
 
     const presetVariations = this.falService.getPresetVariations();
@@ -291,15 +305,15 @@ export class PosterGenerationOrchestrator {
     console.log("Testing services...");
 
     const fiboOk = await this.fiboService.testConnection();
-    const falOk = await this.falService.testConnection();
+    const falOk = this.falService ? await this.falService.testConnection() : false;
 
     console.log(`FIBO service: ${fiboOk ? "✓" : "✗"}`);
-    console.log(`FAL service: ${falOk ? "✓" : "✗"}`);
+    console.log(`FAL service: ${this.falService ? (falOk ? "✓" : "✗") : "⊘ Not configured"}`);
 
     return {
       fibo: fiboOk,
       fal: falOk,
-      overall: fiboOk && falOk,
+      overall: fiboOk, // Only FIBO is required now
     };
   }
 
@@ -312,19 +326,15 @@ export class PosterGenerationOrchestrator {
 }
 
 /**
- * Create an orchestrator instance with default services
+ * Create an orchestrator instance with services
+ * FAL service is now optional - only FIBO is required
  */
 export function createPosterGenerationOrchestrator(
   fiboService: FiboService,
-  falService: FalService
+  falService?: FalService
 ): PosterGenerationOrchestrator {
-  const layoutEngine = new LayoutEngine();
-  const promptBuilder = new FiboStructuredPromptBuilder();
-
   return new PosterGenerationOrchestrator(
     fiboService,
-    falService,
-    layoutEngine,
-    promptBuilder
+    falService
   );
 }

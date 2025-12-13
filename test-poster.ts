@@ -4,26 +4,21 @@
  */
 
 import { createFiboService } from './src/services/fiboService';
-import { createFalService } from './src/services/falService';
 import { createPosterGenerationOrchestrator } from './src/services/posterGenerationOrchestrator';
 import { transformerPaperBeginner } from './src/data/exampleSummaries';
 
 async function generateTestPoster() {
   console.log('\n╔════════════════════════════════════════╗');
-  console.log('║  Poster Generation Test                ║');
+  console.log('║  Poster Generation Test (FIBO Only)   ║');
   console.log('╚════════════════════════════════════════╝\n');
 
   console.log('Paper:', transformerPaperBeginner.summary.title);
   console.log('Level:', transformerPaperBeginner.knowledge_level);
   console.log('Concepts:', transformerPaperBeginner.summary.key_concepts.length);
-  console.log('\n⏳ Initializing services...\n');
+  console.log('\n⏳ Initializing FIBO service...\n');
 
   const fiboService = createFiboService();
-  const falService = createFalService();
-  const orchestrator = createPosterGenerationOrchestrator(
-    fiboService,
-    falService
-  );
+  const orchestrator = createPosterGenerationOrchestrator(fiboService);
 
   console.log('⏳ Generating poster...');
   console.log('   This will take 30-60 seconds...\n');
@@ -55,10 +50,10 @@ async function generateTestPoster() {
       console.log('✓ Open the image URL in your browser to see the poster!\n');
 
       console.log('Next steps:');
-      console.log('1. Try with variations: Edit this file and set include_variations: true');
-      console.log('2. Test different levels: Use transformerPaperIntermediate or transformerPaperAdvanced');
-      console.log('3. Try fast mode: Use orchestrator.generateFastMode() instead');
-      console.log('4. Add your own paper data in src/data/exampleSummaries.ts\n');
+      console.log('1. Test different levels: Use transformerPaperIntermediate or transformerPaperAdvanced');
+      console.log('2. Add your own paper data in src/data/exampleSummaries.ts');
+      console.log('3. Integrate with your friend\'s summarization system');
+      console.log('4. Build frontend UI to display posters\n');
 
     } else {
       console.log('✗ GENERATION FAILED\n');
