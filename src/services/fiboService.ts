@@ -15,7 +15,7 @@ export class FiboService {
   private maxPollAttempts: number = 60; // 60 attempts * 2s = 2 minutes max
   private pollIntervalMs: number = 2000;
 
-  constructor(apiKey: string, baseUrl: string = "https://api.fibo.com/v2") {
+  constructor(apiKey: string, baseUrl: string = "https://engine.prod.bria-api.com/v2") {
     if (!apiKey) {
       throw new Error("FIBO API key is required");
     }
@@ -275,7 +275,7 @@ export function createFiboService(): FiboService {
     );
   }
 
-  const baseUrl = process.env.FIBO_API_URL || "https://api.fibo.com/v2";
+  const baseUrl = process.env.FIBO_API_URL || process.env.BRIA_API_URL || "https://engine.prod.bria-api.com/v2";
 
   return new FiboService(apiKey, baseUrl);
 }
