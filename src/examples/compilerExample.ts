@@ -24,7 +24,7 @@ async function example1_BasicCompilation() {
   // Create compiler (single-pass mode)
   const compiler = createSummaryCompiler(llm, {
     maxRetries: 3,
-    twoPassMode: false,
+    twoPassMode: true,
   });
 
   // Unstructured summary text
