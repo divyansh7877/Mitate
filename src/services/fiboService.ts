@@ -44,6 +44,14 @@ export class FiboService {
           image_size: request.image_size || { width: 1024, height: 1024 },
           output_format: "png",
           sync: true,
+          // Quality enhancement parameters from BRIA spec
+          steps_num: 45, // 40-50 recommended for high quality
+          enhance_image: true, // Apply post-processing for sharpness
+          text_guidance_scale: 8.5, // 7.5-10 for strong prompt adherence and clear text
+          aspect_ratio: "1:1", // Square for poster (can be "16:9" for wide infographics)
+          fast: false, // Disable fast mode for higher quality
+          // Negative prompt to avoid quality issues
+          negative_prompt: "blurry text, low resolution, sloppy lines, illegible labels, pixelation, artifacts, distorted fonts, overcrowded layout, poor contrast, unreadable text, fuzzy edges, compression artifacts, jpeg artifacts, watermark, low quality, amateur design, cluttered, messy, unclear typography",
         }),
       });
 

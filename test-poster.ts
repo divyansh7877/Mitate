@@ -5,16 +5,16 @@
 
 import { createFiboService } from './src/services/fiboService';
 import { createPosterGenerationOrchestrator } from './src/services/posterGenerationOrchestrator';
-import { transformerPaperBeginner } from './src/data/exampleSummaries';
+import { vitPaperBeginner } from './src/data/exampleSummary2';
 
 async function generateTestPoster() {
   console.log('\n╔════════════════════════════════════════╗');
   console.log('║  Poster Generation Test (FIBO Only)   ║');
   console.log('╚════════════════════════════════════════╝\n');
 
-  console.log('Paper:', transformerPaperBeginner.summary.title);
-  console.log('Level:', transformerPaperBeginner.knowledge_level);
-  console.log('Concepts:', transformerPaperBeginner.summary.key_concepts.length);
+  console.log('Paper:', vitPaperBeginner.summary.title);
+  console.log('Level:', vitPaperBeginner.knowledge_level);
+  console.log('Concepts:', vitPaperBeginner.summary.key_concepts.length);
   console.log('\n⏳ Initializing FIBO service...\n');
 
   const fiboService = createFiboService();
@@ -26,7 +26,7 @@ async function generateTestPoster() {
   const startTime = Date.now();
 
   try {
-    const result = await orchestrator.generate(transformerPaperBeginner);
+    const result = await orchestrator.generate(vitPaperBeginner);
 
     const totalTime = Date.now() - startTime;
 

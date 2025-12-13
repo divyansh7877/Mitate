@@ -63,11 +63,14 @@ export class FiboStructuredPromptBuilder {
     };
 
     return `
-A clean, modern educational infographic explaining "${input.summary.title}" from research paper arxiv/${input.arxiv_id}.
+A HIGH-RESOLUTION, professional-quality educational infographic explaining "${input.summary.title}" from research paper arxiv/${input.arxiv_id}.
 The design uses a ${layout.type} layout with ${input.summary.key_concepts.length} main concept sections.
 Style is ${levelDescriptor[input.knowledge_level]}.
-The infographic includes clear section headers, explanatory text, and visual representations of key concepts.
-Overall aesthetic is minimalist, educational, and suitable for sharing on social media or academic presentations.
+CRITICAL QUALITY REQUIREMENTS: All text must be crystal clear, sharp, and fully legible at large sizes (minimum 12pt equivalent).
+Use clean vector-style graphics with sharp lines, high contrast colors, and no blurriness or artifacts.
+The infographic includes crisp section headers, perfectly readable explanatory text, and precise visual representations of key concepts.
+Overall aesthetic is minimalist, professional, polished, and print-ready quality suitable for sharing on social media or academic presentations.
+NO pixelation, NO fuzzy text, NO compression artifacts - every element must be sharp and professional.
     `.trim();
   }
 
@@ -160,13 +163,13 @@ Overall aesthetic is minimalist, educational, and suitable for sharing on social
     };
 
     return {
-      description: `Main header banner section containing the title "${title}" and ${iconDescriptor[level]}. Modern and professional design that immediately communicates the topic.`,
+      description: `Main header banner section containing the title "${title}" in LARGE, BOLD, CRYSTAL-CLEAR typography and ${iconDescriptor[level]}. Ultra-professional design with sharp edges and high contrast that immediately communicates the topic. All text must be perfectly legible and sharp.`,
       location: `top-center, starting at ${section.position.y}`,
       relationship: "Primary visual anchor, introduces the research topic to the viewer",
       relative_size: `${section.height_percentage}% of total vertical space`,
-      shape_and_color: `Rounded rectangle banner with gradient from ${colorScheme.primary} to ${colorScheme.secondary}`,
-      texture: "flat color with subtle gradient, smooth finish",
-      appearance_details: `Clean edges, modern sans-serif typography, small decorative pattern (neural network or research-themed) in background at 10% opacity`,
+      shape_and_color: `Rounded rectangle banner with smooth gradient from ${colorScheme.primary} to ${colorScheme.secondary}, high contrast with white text`,
+      texture: "flat vector-style with subtle gradient, perfectly smooth finish, no artifacts",
+      appearance_details: `Razor-sharp edges, modern high-quality sans-serif typography with excellent readability (minimum 18pt equivalent), small decorative pattern (neural network or research-themed) in background at 10% opacity, professional polish`,
       orientation: "horizontal banner spanning full width",
     };
   }
@@ -196,13 +199,13 @@ Overall aesthetic is minimalist, educational, and suitable for sharing on social
       containerColors[level][index % containerColors[level].length];
 
     return {
-      description: visualDescription,
+      description: visualDescription + " All text must be SHARP, CLEAR, and HIGHLY READABLE with excellent contrast. Use professional typography with minimum 14pt equivalent font sizes.",
       location: `${section.position.y} from top, ${section.position.x} horizontally`,
       relationship: `Concept ${index + 1} of ${section.height_percentage}%, sequentially connected to other concepts`,
       relative_size: `${section.height_percentage}% of vertical space`,
-      shape_and_color: `Rounded container with light background ${bgColor}, accent colors from ${colorScheme.accent}`,
-      texture: "flat illustration style with subtle depth through shadows",
-      appearance_details: `Numbered label '${index + 1}' in a circle at top-left, clear visual hierarchy, ${level === "beginner" ? "simple and friendly" : level === "intermediate" ? "technical and practical" : "dense and scholarly"}`,
+      shape_and_color: `Clean rounded container with light background ${bgColor}, high-contrast accent colors from ${colorScheme.accent}, sharp edges`,
+      texture: "flat vector illustration style with subtle depth through precise shadows, no blur or artifacts",
+      appearance_details: `Large numbered label '${index + 1}' in a circle at top-left with crystal-clear typography, excellent visual hierarchy with sharp text rendering, ${level === "beginner" ? "simple, friendly, and extremely readable" : level === "intermediate" ? "technical, practical, and professionally clear" : "dense, scholarly, but still perfectly legible"}`,
       orientation: "horizontal section with internal layout",
     };
   }
@@ -300,7 +303,7 @@ Show methodology details and technical nuances with annotations.
       color: "#FFFFFF",
       font: typography.titleFont,
       appearance_details:
-        "Bold, all caps, letter-spacing: 0.05em for readability, high contrast",
+        "LARGE, BOLD, all caps, letter-spacing: 0.05em for maximum readability, ultra-high contrast white on dark background, crystal-clear rendering, sharp edges, professional quality typography with anti-aliasing for smoothness",
     });
 
     // Subtitle
@@ -310,7 +313,7 @@ Show methodology details and technical nuances with annotations.
       size: typography.subtitleSize,
       color: "rgba(255, 255, 255, 0.95)",
       font: typography.bodyFont,
-      appearance_details: "Regular weight, sentence case, slightly transparent for hierarchy",
+      appearance_details: "Regular weight, sentence case, slightly transparent for hierarchy, SHARP and CLEAR text rendering, excellent legibility, smooth anti-aliased edges",
     });
 
     // Concept sections
@@ -329,7 +332,7 @@ Show methodology details and technical nuances with annotations.
           size: typography.headingSize,
           color: typography.headingColor,
           font: typography.headingFont,
-          appearance_details: "Bold, numbered for sequence, all caps for emphasis",
+          appearance_details: "BOLD, numbered for sequence, all caps for emphasis, CRYSTAL-CLEAR rendering with sharp edges, high contrast for maximum readability, professional typography",
         });
 
         // Concept explanation
@@ -344,7 +347,7 @@ Show methodology details and technical nuances with annotations.
           size: explanationFontSize,
           color: typography.bodyColor,
           font: typography.bodyFont,
-          appearance_details: `Line height: 1.6 for readability, max width: 80% of section width, left-aligned, ${this.getExplanationStyle(input.knowledge_level)}`,
+          appearance_details: `Line height: 1.6 for maximum readability, max width: 80% of section width, left-aligned, SHARP and PERFECTLY LEGIBLE text rendering with excellent clarity, smooth anti-aliased typography, high contrast against background, ${this.getExplanationStyle(input.knowledge_level)}`,
         });
       }
     });
@@ -356,7 +359,7 @@ Show methodology details and technical nuances with annotations.
       size: typography.calloutSize,
       color: "#FFFFFF",
       font: typography.headingFont,
-      appearance_details: "Bold, high contrast, attention-grabbing, emphasis text",
+      appearance_details: "BOLD, ultra-high contrast white text, attention-grabbing, emphasis text with CRYSTAL-CLEAR rendering, sharp edges, professional quality",
     });
 
     // Citation
@@ -366,7 +369,7 @@ Show methodology details and technical nuances with annotations.
       size: typography.captionSize,
       color: "rgba(255, 255, 255, 0.8)",
       font: typography.bodyFont,
-      appearance_details: "Small, subtle but readable, professional citation format",
+      appearance_details: "Small but PERFECTLY READABLE, subtle yet clear, professional citation format with sharp text rendering",
     });
 
     return textElements;
@@ -417,14 +420,14 @@ Show methodology details and technical nuances with annotations.
     level: KnowledgeLevel
   ): string {
     if (level === "beginner") {
-      return `Clean white background (${colorScheme.background}) with subtle decorative elements like light dots or abstract shapes at 5% opacity. Bright and welcoming.`;
+      return `Clean, crisp white background (${colorScheme.background}) with subtle decorative elements like light dots or abstract shapes at 5% opacity. Bright, welcoming, and PERFECTLY SMOOTH with no artifacts or noise. High-quality flat design.`;
     }
 
     if (level === "intermediate") {
-      return `Professional light gray background (${colorScheme.background}) with subtle grid pattern at 3% opacity. Clean and technical feel.`;
+      return `Professional light gray background (${colorScheme.background}) with subtle grid pattern at 3% opacity. Clean, technical feel with SHARP, PRECISE lines and no blur or distortion. Vector-quality smoothness.`;
     }
 
-    return `Academic off-white background (${colorScheme.background}) with minimal texture. Serious and scholarly appearance, no distractions.`;
+    return `Academic off-white background (${colorScheme.background}) with minimal texture. Serious, scholarly appearance with CLEAN, ARTIFACT-FREE rendering. No distractions, perfectly smooth surface.`;
   }
 
   /**
@@ -513,11 +516,11 @@ ${input.user_preferences?.background ? `The viewer has background in: ${input.us
   private selectArtisticStyle(level: KnowledgeLevel): string {
     const styles = {
       beginner:
-        "minimalist, modern infographic, flat design, friendly illustration, clean vector art, educational, colorful",
+        "minimalist, modern infographic, flat design, friendly illustration, clean vector art, educational, colorful, SHARP LINES, HIGH RESOLUTION, crystal-clear text, professional quality, print-ready",
       intermediate:
-        "professional infographic, technical illustration, clean design, modern, engineering-style diagrams",
+        "professional infographic, technical illustration, clean design, modern, engineering-style diagrams, SHARP and PRECISE, high-quality vector graphics, perfectly legible text, polished",
       advanced:
-        "academic infographic, scholarly design, precise technical diagrams, mathematical notation, journal-quality, muted colors",
+        "academic infographic, scholarly design, precise technical diagrams, mathematical notation, journal-quality, muted colors, ULTRA-SHARP rendering, publication-ready, professional typography",
     };
 
     return styles[level];

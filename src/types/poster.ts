@@ -24,6 +24,7 @@ export interface UserPreferences {
   background?: string; // e.g., "biology", "computer science"
   preferred_colors?: string[];
   style_preference?: "minimalist" | "detailed" | "academic";
+  style_hints?: string;
 }
 
 export type KnowledgeLevel = "beginner" | "intermediate" | "advanced";
@@ -38,7 +39,9 @@ export interface GenerationInput {
 }
 
 export interface GenerationOptions {
-  // Placeholder for future options
+  include_layout_previews?: boolean;
+  include_variations?: boolean;
+  generation_mode?: string;
 }
 
 // ============================================================================
