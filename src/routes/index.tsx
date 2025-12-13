@@ -1,10 +1,29 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ComponentExample } from "@/components/component-example";
+import { AppProvider, useApp } from "@/lib/app-context";
+import { LandingPage } from "@/components/LandingPage";
+import { LoadingState } from "@/components/LoadingState";
+import { ResultPage } from "@/components/ResultPage";
 
-export const Route = createFileRoute("/")({ component: App });
+export const Route = createFileRoute("/")({ component: RootComponent });
 
-function App() {
-return (
-  <ComponentExample />
-);
+function RootComponent() {
+  return (
+    <AppProvider>
+      <AppContent />
+    </AppProvider>
+  );
+}
+
+function AppContent() {
+  const { step } = useApp();
+
+  switch (step) {
+    case 'loading':
+      return <LoadingState />;
+    case 'result':
+      return <ResultPage />;
+    case 'landing':
+    default:
+      return <LandingPage />;
+  }
 }
