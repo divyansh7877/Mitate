@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react'
 import { useApp, InfographicResult } from '@/lib/app-context'
+import { api } from '@/lib/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { CheckCircle2, Loader2, Circle } from 'lucide-react'
 
 const steps = [
@@ -10,33 +12,75 @@ const steps = [
 ]
 
 export const LoadingState = () => {
-  const { setStep, setResult, query } = useApp()
+  const { setStep, setResult, query, requestId } = useApp()
   const [currentStep, setCurrentStep] = useState(1)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    // Mocking the progress for now. In a real app, this would be driven by backend events or polling.
-    const timers: NodeJS.Timeout[] = []
+    if (!requestId) {
+      setError('No request ID found')
+      return
+    }
 
-    timers.push(setTimeout(() => setCurrentStep(2), 2000))
-    timers.push(setTimeout(() => setCurrentStep(3), 5000))
-    timers.push(
-      setTimeout(() => {
-        // Mock result
-        const mockResult: InfographicResult = {
-          paperTitle: 'Attention Is All You Need',
-          paperUrl: 'https://arxiv.org/abs/1706.03762',
-          imageUrl:
-            'https://placehold.co/1024x1024/png?text=Transformer+Infographic',
-          summary:
-            'Transformers outperform previous models while being faster to train. This architecture powers ChatGPT, Google Search, and most modern AI.',
+    let pollInterval: NodeJS.Timeout
+
+    async function pollStatus() {
+      try {
+        const status = await api.getStatus(requestId)
+
+        // Update progress indicator based on status
+        if (status.status === 'finding_paper') setCurrentStep(1)
+        if (status.status === 'summarizing') setCurrentStep(2)
+        if (status.status === 'generating_image') setCurrentStep(3)
+
+        if (status.status === 'complete' && status.result) {
+          clearInterval(pollInterval)
+
+          // Transform API result to app context format
+          const result: InfographicResult = {
+            paperTitle: status.result.paper_title,
+            paperUrl: status.result.paper_url,
+            imageUrl: status.result.image_url,
+            summary: JSON.stringify(status.result.summary, null, 2),
+          }
+
+          setResult(result)
+          setStep('result')
+        } else if (status.status === 'failed') {
+          clearInterval(pollInterval)
+          setError(status.error || 'Generation failed')
         }
-        setResult(mockResult)
-        setStep('result')
-      }, 8000),
-    )
+      } catch (err) {
+        console.error('Polling error:', err)
+        setError(err instanceof Error ? err.message : 'Failed to check status')
+        clearInterval(pollInterval)
+      }
+    }
 
-    return () => timers.forEach(clearTimeout)
-  }, [setStep, setResult])
+    // Poll every 2 seconds
+    pollInterval = setInterval(pollStatus, 2000)
+    pollStatus() // Initial call
+
+    return () => clearInterval(pollInterval)
+  }, [requestId, setStep, setResult])
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-background p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle className="text-destructive">Error</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-foreground">{error}</p>
+            <Button onClick={() => setStep('landing')} className="w-full">
+              Try Again
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-background p-4">

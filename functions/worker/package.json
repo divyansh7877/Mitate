@@ -4,9 +4,9 @@
   "description": "",
   "main": "src/main.js",
   "dependencies": {
-    "node-appwrite": "^11.0.0",
+    "@gradientai/nodejs-sdk": "^1.12.1",
     "axios": "^1.6.0",
+    "node-appwrite": "^11.0.0",
     "xml2js": "^0.6.2"
-  },
-  "devDependencies": {}
+  }
 }

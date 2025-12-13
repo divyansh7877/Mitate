@@ -1,105 +1,461 @@
-import { Client, Databases, Storage } from 'node-appwrite';
-import axios from 'axios';
+import { Client, Databases, Storage, ID, InputFile } from 'node-appwrite'
+import Gradient from '@gradientai/nodejs-sdk'
+import axios from 'axios'
+import { parseStringPromise } from 'xml2js'
 
 // Environment variables
 const {
-    APPWRITE_FUNCTION_PROJECT_ID,
-    APPWRITE_API_KEY,
-    GRADIENT_ACCESS_TOKEN,
-    GRADIENT_WORKSPACE_ID,
-    FIBO_API_KEY
-} = process.env;
+  APPWRITE_FUNCTION_PROJECT_ID,
+  APPWRITE_API_KEY,
+  GRADIENT_ACCESS_TOKEN,
+  GRADIENT_WORKSPACE_ID,
+  FIBO_API_KEY,
+  FAL_KEY,
+  DATABASE_ID = 'mitate-db',
+  BUCKET_ID = 'poster-images',
+} = process.env
 
-export default async ({ req, res, log, error }) => {
-    // This worker is triggered by the 'generate' function or by DB events.
-    // Input: { requestId }
+export default async ({ req, res, log, error: logError }) => {
+  const client = new Client()
+    .setEndpoint('https://cloud.appwrite.io/v1')
+    .setProject(APPWRITE_FUNCTION_PROJECT_ID)
+    .setKey(APPWRITE_API_KEY)
 
-    const client = new Client()
-        .setEndpoint('https://cloud.appwrite.io/v1')
-        .setProject(APPWRITE_FUNCTION_PROJECT_ID)
-        .setKey(APPWRITE_API_KEY);
+  const databases = new Databases(client)
+  const storage = new Storage(client)
 
-    const databases = new Databases(client);
+  let payload
+  try {
+    payload = JSON.parse(req.body || '{}')
+  } catch (e) {
+    return res.json({ error: 'Invalid JSON' }, 400)
+  }
 
-    let payload;
+  const { requestId } = payload
+  if (!requestId) {
+    return res.json({ error: 'Missing requestId' }, 400)
+  }
+
+  log(`Starting processing for request: ${requestId}`)
+
+  /**
+   * Update request status in database
+   */
+  const updateStatus = async (status, errorMessage = null) => {
     try {
-        payload = JSON.parse(req.body);
-    } catch(e) {
-        return res.json({error: "Invalid JSON"}, 400);
-    }
-
-    const { requestId } = payload;
-    if (!requestId) return res.json({error: "Missing requestId"}, 400);
-
-    const updateStatus = async (status, message) => {
-        await databases.updateDocument('database_id', 'requests', requestId, {
-            status,
-            // message // Assuming we add a message field to the collection schema
-        });
-    };
-
-    try {
-        // 1. Get Request Data
-        const requestDoc = await databases.getDocument('database_id', 'requests', requestId);
-        const { query, knowledge_level } = requestDoc;
-
-        // 2. Paper Finder Agent
-        await updateStatus('finding_paper', 'Finding relevant papers...');
-
-        // Call Gradient AI or ArXiv API directly
-        // For MVP, let's assume we call ArXiv API directly here or via Gradient
-        const arxivResponse = await axios.get(`http://export.arxiv.org/api/query?search_query=all:${encodeURIComponent(query)}&max_results=1`);
-        // Parse XML response... (omitted for brevity, assume we got metadata)
-        const paperMetadata = {
-            arxiv_id: "1706.03762",
-            title: "Attention Is All You Need",
-            abstract: "The dominant sequence transduction models...",
-            published: "2017-06-12",
-            pdf_url: "https://arxiv.org/pdf/1706.03762.pdf",
-            arxiv_url: "https://arxiv.org/abs/1706.03762"
-        };
-
-        // 3. Summarizer Agent
-        await updateStatus('summarizing', 'Reading and summarizing...');
-
-        // Call Gradient AI to summarize
-        // const summary = await gradientAi.summarize(paperMetadata.abstract, knowledge_level);
-        const summary = {
-             title: paperMetadata.title,
-             one_liner: "A new way to help computers understand language by focusing on what matters most",
-             key_concepts: [
-                { name: "Self-Attention", explanation: "...", visual_metaphor: "..." }
-             ],
-             key_finding: "Transformers outperform previous models",
-             real_world_impact: "Powers ChatGPT",
-             fibo_prompt: "..." // Generated prompt
-        };
-
-        // 4. Image Generation
-        await updateStatus('generating_image', 'Generating your infographic...');
-
-        // Call Fibo API
-        // const imageRes = await axios.post('https://api.bria.ai/v1/image/generate', { ... });
-        const imageUrl = "https://placehold.co/1024x1024/png?text=Generated+Infographic";
-
-        // 5. Store Result
-        await databases.createDocument('database_id', 'results', 'unique()', {
-            request_id: requestId,
-            arxiv_id: paperMetadata.arxiv_id,
-            paper_title: paperMetadata.title,
-            paper_url: paperMetadata.arxiv_url,
-            summary_json: JSON.stringify(summary),
-            image_url: imageUrl,
-            created_at: new Date().toISOString()
-        });
-
-        await updateStatus('complete', 'Complete!');
-
-        return res.json({ success: true });
-
+      const updateData = {
+        status,
+        updated_at: new Date().toISOString(),
+      }
+      if (errorMessage) {
+        updateData.error = errorMessage
+      }
+      await databases.updateDocument(
+        DATABASE_ID,
+        'requests',
+        requestId,
+        updateData,
+      )
+      log(`Status updated to: ${status}`)
     } catch (err) {
-        error(err);
-        await updateStatus('failed', 'An error occurred');
-        return res.json({ error: err.message }, 500);
+      logError(`Failed to update status: ${err.message}`)
     }
-};
+  }
+
+  try {
+    // ============================================================
+    // Step 1: Get Request Data
+    // ============================================================
+    const requestDoc = await databases.getDocument(
+      DATABASE_ID,
+      'requests',
+      requestId,
+    )
+    const { query, query_type, knowledge_level } = requestDoc
+
+    log(
+      `Processing: query="${query}", type="${query_type}", level="${knowledge_level}"`,
+    )
+
+    // ============================================================
+    // Step 2: Agent 1 - Paper Finder
+    // ============================================================
+    await updateStatus('finding_paper')
+
+    let paperMetadata
+
+    if (query_type === 'arxiv_link') {
+      // Extract arXiv ID from URL
+      const arxivId = extractArxivId(query)
+      if (!arxivId) {
+        throw new Error('Invalid ArXiv URL format')
+      }
+      paperMetadata = await fetchPaperMetadata(arxivId, log, logError)
+    } else {
+      // Search ArXiv for topic
+      paperMetadata = await searchArxivByTopic(query, log, logError)
+    }
+
+    log(`Found paper: ${paperMetadata.title} (${paperMetadata.arxiv_id})`)
+
+    // ============================================================
+    // Step 3: Agent 2 - Gradient AI Summarizer
+    // ============================================================
+    await updateStatus('summarizing')
+
+    const summary = await summarizeWithGradientAI(
+      paperMetadata.abstract,
+      paperMetadata.title,
+      knowledge_level,
+      log,
+      logError,
+    )
+
+    log(`Summary generated with ${summary.key_concepts.length} concepts`)
+
+    // ============================================================
+    // Step 4: Agent 3 - Image Generation (Simplified for MVP)
+    // ============================================================
+    await updateStatus('generating_image')
+
+    // For MVP, we'll use a placeholder or simple FIBO call
+    // In production, this would use the full PosterGenerationOrchestrator
+    let imageUrl
+
+    if (FIBO_API_KEY) {
+      try {
+        imageUrl = await generateWithFibo(
+          summary,
+          knowledge_level,
+          log,
+          logError,
+        )
+      } catch (fiboError) {
+        log(`FIBO generation failed: ${fiboError.message}, using placeholder`)
+        imageUrl = `https://placehold.co/1024x1024/059669/white?text=${encodeURIComponent(summary.title)}`
+      }
+    } else {
+      log('FIBO_API_KEY not set, using placeholder image')
+      imageUrl = `https://placehold.co/1024x1024/059669/white?text=${encodeURIComponent(summary.title)}`
+    }
+
+    log(`Image generated: ${imageUrl}`)
+
+    // ============================================================
+    // Step 5: Store Result
+    // ============================================================
+    await databases.createDocument(DATABASE_ID, 'results', ID.unique(), {
+      request_id: requestId,
+      arxiv_id: paperMetadata.arxiv_id,
+      paper_title: paperMetadata.title,
+      paper_url: paperMetadata.arxiv_url,
+      summary_json: JSON.stringify(summary),
+      fibo_structured_prompt: '', // Would contain full FIBO prompt in production
+      fibo_seed: Math.floor(Math.random() * 1000000),
+      image_url: imageUrl,
+      image_storage_id: null, // Could upload to storage bucket here
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+
+    await updateStatus('complete')
+
+    log(`Processing complete for request: ${requestId}`)
+    return res.json({ success: true }, 200)
+  } catch (err) {
+    logError(`Processing failed: ${err.message}`)
+    await updateStatus('failed', err.message)
+    return res.json({ error: err.message }, 500)
+  }
+}
+
+// ============================================================
+// Helper Functions
+// ============================================================
+
+/**
+ * Extract arXiv ID from URL
+ */
+function extractArxivId(url) {
+  const match = url.match(/arxiv\.org\/(?:abs|pdf)\/(\d+\.\d+)/)
+  return match ? match[1] : null
+}
+
+/**
+ * Fetch paper metadata by arXiv ID
+ */
+async function fetchPaperMetadata(arxivId, log, logError) {
+  try {
+    const response = await axios.get(
+      `http://export.arxiv.org/api/query?id_list=${arxivId}`,
+      { timeout: 10000 },
+    )
+
+    const parsed = await parseStringPromise(response.data)
+    const entry = parsed.feed.entry?.[0]
+
+    if (!entry) {
+      throw new Error('Paper not found on ArXiv')
+    }
+
+    return {
+      arxiv_id: arxivId,
+      title: entry.title[0].trim(),
+      abstract: entry.summary[0].trim(),
+      authors: entry.author?.map((a) => a.name[0]).join(', ') || 'Unknown',
+      published: entry.published[0],
+      pdf_url: `https://arxiv.org/pdf/${arxivId}.pdf`,
+      arxiv_url: `https://arxiv.org/abs/${arxivId}`,
+    }
+  } catch (error) {
+    logError(`Error fetching arXiv metadata: ${error.message}`)
+    throw new Error(`Failed to fetch paper from ArXiv: ${error.message}`)
+  }
+}
+
+/**
+ * Search ArXiv by topic
+ */
+async function searchArxivByTopic(query, log, logError) {
+  try {
+    const response = await axios.get(
+      `http://export.arxiv.org/api/query?search_query=all:${encodeURIComponent(query)}&max_results=1`,
+      { timeout: 10000 },
+    )
+
+    const parsed = await parseStringPromise(response.data)
+    const entry = parsed.feed.entry?.[0]
+
+    if (!entry) {
+      throw new Error('No papers found for this topic')
+    }
+
+    const idParts = entry.id[0].split('/')
+    const arxivId = idParts[idParts.length - 1]
+
+    return {
+      arxiv_id: arxivId,
+      title: entry.title[0].trim(),
+      abstract: entry.summary[0].trim(),
+      authors: entry.author?.map((a) => a.name[0]).join(', ') || 'Unknown',
+      published: entry.published[0],
+      pdf_url: `https://arxiv.org/pdf/${arxivId}.pdf`,
+      arxiv_url: `https://arxiv.org/abs/${arxivId}`,
+    }
+  } catch (error) {
+    logError(`Error searching arXiv: ${error.message}`)
+    throw new Error(`Failed to search ArXiv: ${error.message}`)
+  }
+}
+
+/**
+ * Summarize paper using Gradient AI
+ */
+async function summarizeWithGradientAI(
+  abstract,
+  title,
+  knowledgeLevel,
+  log,
+  logError,
+) {
+  if (!GRADIENT_ACCESS_TOKEN || !GRADIENT_WORKSPACE_ID) {
+    logError('Gradient AI credentials not configured, using fallback')
+    return generateFallbackSummary(title, abstract, knowledgeLevel)
+  }
+
+  try {
+    const gradient = new Gradient({
+      accessToken: GRADIENT_ACCESS_TOKEN,
+      workspaceId: GRADIENT_WORKSPACE_ID,
+    })
+
+    const prompt = buildSummarizationPrompt(abstract, title, knowledgeLevel)
+
+    log('Calling Gradient AI for summarization...')
+
+    const response = await gradient.chat.completions.create({
+      model: 'llama-3-70b-instruct',
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You are an expert at summarizing research papers for different knowledge levels. Always return valid JSON only.',
+        },
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+      temperature: 0.7,
+      maxTokens: 2000,
+    })
+
+    const content = response.choices[0].message.content.trim()
+
+    // Try to extract JSON if wrapped in markdown code blocks
+    let jsonContent = content
+    const codeBlockMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/)
+    if (codeBlockMatch) {
+      jsonContent = codeBlockMatch[1]
+    }
+
+    const summary = JSON.parse(jsonContent)
+    validateSummary(summary)
+
+    return {
+      title,
+      ...summary,
+    }
+  } catch (error) {
+    logError(`Gradient AI error: ${error.message}`)
+    log('Falling back to basic summary generation')
+    return generateFallbackSummary(title, abstract, knowledgeLevel)
+  }
+}
+
+/**
+ * Build summarization prompt for Gradient AI
+ */
+function buildSummarizationPrompt(abstract, title, knowledgeLevel) {
+  const levelInstructions = {
+    beginner: `
+- Use simple, everyday language
+- Explain concepts like you're talking to a 5th grader
+- Use analogies and metaphors from daily life
+- Avoid technical jargon
+- Focus on "what" and "why" rather than "how"`,
+    intermediate: `
+- Use professional language with some technical terms
+- Define technical terms when first used
+- Balance between accessibility and precision
+- Include practical implications
+- Explain "how" things work at a high level`,
+    advanced: `
+- Use full technical vocabulary
+- Include methodology details
+- Discuss limitations and nuances
+- Reference related work
+- Focus on theoretical foundations and implications`,
+  }
+
+  return `You are summarizing the research paper titled "${title}" for a ${knowledgeLevel} audience.
+
+${levelInstructions[knowledgeLevel]}
+
+Paper Abstract:
+"""
+${abstract}
+"""
+
+Generate a JSON summary with the following structure:
+
+{
+  "one_liner": "A single sentence summary of the entire paper",
+  "key_concepts": [
+    {
+      "name": "Concept Name",
+      "explanation": "Explanation appropriate for ${knowledgeLevel} level (2-3 sentences)",
+      "visual_metaphor": "A concrete, visual analogy or metaphor (e.g., 'a spotlight on a stage', 'building blocks stacking up')"
+    }
+  ],
+  "key_finding": "The main result or contribution of the paper (1-2 sentences)",
+  "real_world_impact": "How this research affects real applications or products (1-2 sentences)"
+}
+
+Requirements:
+- Include 3-7 key concepts (most important ideas from the paper)
+- Visual metaphors MUST be concrete and visualizable (for image generation)
+- Adjust complexity to ${knowledgeLevel} level
+- Return ONLY valid JSON, no markdown formatting, no additional text
+
+JSON:`
+}
+
+/**
+ * Validate summary structure
+ */
+function validateSummary(summary) {
+  const required = [
+    'one_liner',
+    'key_concepts',
+    'key_finding',
+    'real_world_impact',
+  ]
+
+  for (const field of required) {
+    if (!summary[field]) {
+      throw new Error(`Missing required field: ${field}`)
+    }
+  }
+
+  if (!Array.isArray(summary.key_concepts)) {
+    throw new Error('key_concepts must be an array')
+  }
+
+  if (summary.key_concepts.length < 3 || summary.key_concepts.length > 7) {
+    throw new Error('Must have 3-7 key concepts')
+  }
+
+  for (const concept of summary.key_concepts) {
+    if (!concept.name || !concept.explanation || !concept.visual_metaphor) {
+      throw new Error(
+        'Each concept must have name, explanation, and visual_metaphor',
+      )
+    }
+  }
+}
+
+/**
+ * Generate fallback summary (when Gradient AI unavailable)
+ */
+function generateFallbackSummary(title, abstract, knowledgeLevel) {
+  const abstractSentences = abstract.split('. ').filter((s) => s.length > 20)
+
+  return {
+    title,
+    one_liner:
+      abstractSentences[0] ||
+      'A research paper exploring new advances in the field',
+    key_concepts: [
+      {
+        name: 'Main Approach',
+        explanation:
+          abstractSentences[1] || 'The paper introduces a novel methodology',
+        visual_metaphor: 'a blueprint for building a new structure',
+      },
+      {
+        name: 'Key Innovation',
+        explanation:
+          abstractSentences[2] ||
+          'A new technique that improves upon existing methods',
+        visual_metaphor: 'a new tool in a toolbox',
+      },
+      {
+        name: 'Results',
+        explanation:
+          abstractSentences[3] || 'The approach shows promising results',
+        visual_metaphor: 'a graph trending upward',
+      },
+    ],
+    key_finding:
+      abstractSentences[abstractSentences.length - 1] ||
+      'This research advances the field',
+    real_world_impact:
+      'This work contributes to the advancement of research and technology',
+  }
+}
+
+/**
+ * Generate image with FIBO (simplified placeholder)
+ */
+async function generateWithFibo(summary, knowledgeLevel, log, logError) {
+  // This is a simplified placeholder
+  // In production, this would use the full PosterGenerationOrchestrator
+  // from src/services/posterGenerationOrchestrator.ts
+
+  log('FIBO integration: Using placeholder (full integration pending)')
+
+  // Return placeholder that includes the paper title
+  const encodedTitle = encodeURIComponent(summary.title.substring(0, 50))
+  return `https://placehold.co/1024x1024/059669/white?text=${encodedTitle}`
+}

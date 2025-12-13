@@ -1,8 +1,9 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
 import { useApp } from '@/lib/app-context'
+import { api } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
@@ -30,7 +31,9 @@ const formSchema = z.object({
 })
 
 export const LandingPage = () => {
-  const { setStep, setQuery, setKnowledgeLevel } = useApp()
+  const { setStep, setQuery, setKnowledgeLevel, setRequestId } = useApp()
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -40,10 +43,31 @@ export const LandingPage = () => {
     },
   })
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    setQuery(values.query)
-    setKnowledgeLevel(values.knowledgeLevel)
-    setStep('loading')
+  async function onSubmit(values: z.infer<typeof formSchema>) {
+    setIsSubmitting(true)
+    setError(null)
+
+    try {
+      // Call the real API
+      const response = await api.generate({
+        query: values.query,
+        knowledge_level: values.knowledgeLevel,
+      })
+
+      // Store request data in context
+      setQuery(values.query)
+      setKnowledgeLevel(values.knowledgeLevel)
+      setRequestId(response.request_id)
+
+      // Navigate to loading state
+      setStep('loading')
+    } catch (err) {
+      console.error('Generation error:', err)
+      setError(
+        err instanceof Error ? err.message : 'Failed to start generation',
+      )
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -150,8 +174,18 @@ export const LandingPage = () => {
                 )}
               />
 
-              <Button type="submit" className="w-full text-lg py-6">
-                Generate Visual Explainer
+              {error && (
+                <div className="p-4 rounded-md bg-destructive/10 border border-destructive text-destructive text-sm">
+                  <strong>Error:</strong> {error}
+                </div>
+              )}
+
+              <Button
+                type="submit"
+                className="w-full text-lg py-6"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? 'Starting...' : 'Generate Visual Explainer'}
               </Button>
             </form>
           </Form>
