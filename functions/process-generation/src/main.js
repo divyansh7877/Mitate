@@ -5,21 +5,34 @@ import { parseStringPromise } from 'xml2js'
 // Environment variables
 const {
   APPWRITE_FUNCTION_PROJECT_ID,
+  APPWRITE_FUNCTION_API_ENDPOINT,
   APPWRITE_API_KEY,
-  DO_GRADIENT_API_KEY, // DigitalOcean Gradient API Key
-  DO_GRADIENT_MODEL = 'meta-llama/llama-3-70b-instruct', // Default model
+  // DigitalOcean Gradient API Key (accept aliases used elsewhere in the repo)
+  DO_GRADIENT_API_KEY,
+  DIGITALOCEAN_API_KEY,
+  DO_API_KEY,
+  // DigitalOcean Model (accept alias)
+  DO_GRADIENT_MODEL,
+  DIGITALOCEAN_MODEL,
   FIBO_API_KEY,
+  BRIA_API_KEY,
   FAL_KEY,
   DATABASE_ID = 'mitate-db',
   BUCKET_ID = 'poster-images',
 } = process.env
+
+const EFFECTIVE_DO_API_KEY = DO_GRADIENT_API_KEY || DIGITALOCEAN_API_KEY || DO_API_KEY
+const EFFECTIVE_DO_MODEL =
+  DO_GRADIENT_MODEL || DIGITALOCEAN_MODEL || 'meta-llama/llama-3-70b-instruct'
+
+const EFFECTIVE_FIBO_API_KEY = FIBO_API_KEY || BRIA_API_KEY
 
 // DigitalOcean Gradient Serverless Inference endpoint
 const DO_GRADIENT_ENDPOINT = 'https://inference.do-ai.run/v1/chat/completions'
 
 export default async ({ req, res, log, error: logError }) => {
   const client = new Client()
-    .setEndpoint('https://cloud.appwrite.io/v1')
+    .setEndpoint(APPWRITE_FUNCTION_API_ENDPOINT || 'https://cloud.appwrite.io/v1')
     .setProject(APPWRITE_FUNCTION_PROJECT_ID)
     .setKey(APPWRITE_API_KEY)
 
@@ -49,15 +62,21 @@ export default async ({ req, res, log, error: logError }) => {
         status,
         updated_at: new Date().toISOString(),
       }
-      if (errorMessage) {
-        updateData.error = errorMessage
+      if (errorMessage) updateData.error = errorMessage
+
+      try {
+        await databases.updateDocument(DATABASE_ID, 'requests', requestId, updateData)
+      } catch (err) {
+        // Some deployments don't have an `error` attribute on `requests`.
+        // Retry without it so status updates still work.
+        const msg = err?.message || ''
+        if (updateData.error && /unknown attribute|invalid document/i.test(msg)) {
+          const { error: _ignored, ...withoutError } = updateData
+          await databases.updateDocument(DATABASE_ID, 'requests', requestId, withoutError)
+        } else {
+          throw err
+        }
       }
-      await databases.updateDocument(
-        DATABASE_ID,
-        'requests',
-        requestId,
-        updateData,
-      )
       log(`Status updated to: ${status}`)
     } catch (err) {
       logError(`Failed to update status: ${err.message}`)
@@ -124,7 +143,7 @@ export default async ({ req, res, log, error: logError }) => {
     // In production, this would use the full PosterGenerationOrchestrator
     let imageUrl
 
-    if (FIBO_API_KEY) {
+    if (EFFECTIVE_FIBO_API_KEY) {
       try {
         imageUrl = await generateWithFibo(
           summary,
@@ -146,19 +165,38 @@ export default async ({ req, res, log, error: logError }) => {
     // ============================================================
     // Step 5: Store Result
     // ============================================================
-    await databases.createDocument(DATABASE_ID, 'results', ID.unique(), {
+    const baseResultDoc = {
       request_id: requestId,
       arxiv_id: paperMetadata.arxiv_id,
       paper_title: paperMetadata.title,
       paper_url: paperMetadata.arxiv_url,
       summary_json: JSON.stringify(summary),
-      fibo_structured_prompt: '', // Would contain full FIBO prompt in production
-      fibo_seed: Math.floor(Math.random() * 1000000),
       image_url: imageUrl,
       image_storage_id: null, // Could upload to storage bucket here
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-    })
+    }
+
+    const extendedResultDoc = {
+      ...baseResultDoc,
+      fibo_structured_prompt: fiboMetadata.fibo_prompt
+        ? JSON.stringify(fiboMetadata.fibo_prompt)
+        : '',
+      fibo_seed: fiboMetadata.fibo_seed || Math.floor(Math.random() * 1000000),
+    }
+
+    try {
+      await databases.createDocument(DATABASE_ID, 'results', ID.unique(), extendedResultDoc)
+    } catch (err) {
+      // Some deployments have a minimal `results` schema (no fibo_* fields).
+      // Retry with minimal fields so the pipeline still completes.
+      const msg = err?.message || ''
+      if (/unknown attribute|invalid document/i.test(msg)) {
+        await databases.createDocument(DATABASE_ID, 'results', ID.unique(), baseResultDoc)
+      } else {
+        throw err
+      }
+    }
 
     await updateStatus('complete')
 
@@ -260,8 +298,10 @@ async function summarizeWithDigitalOceanGradient(
   log,
   logError,
 ) {
-  if (!DO_GRADIENT_API_KEY) {
-    logError('DigitalOcean Gradient API key not configured, using fallback')
+  if (!EFFECTIVE_DO_API_KEY) {
+    logError(
+      'DigitalOcean Gradient API key not configured (set DO_GRADIENT_API_KEY or DIGITALOCEAN_API_KEY), using fallback',
+    )
     return generateFallbackSummary(title, abstract, knowledgeLevel)
   }
 
@@ -274,7 +314,7 @@ async function summarizeWithDigitalOceanGradient(
     const response = await axios.post(
       DO_GRADIENT_ENDPOINT,
       {
-        model: DO_GRADIENT_MODEL,
+        model: EFFECTIVE_DO_MODEL,
         messages: [
           {
             role: 'system',
@@ -286,12 +326,12 @@ async function summarizeWithDigitalOceanGradient(
             content: prompt,
           },
         ],
-        temperature: 0.7,
-        max_tokens: 2000,
+        temperature: 0.1,
+        max_tokens: 2048,
       },
       {
         headers: {
-          Authorization: `Bearer ${DO_GRADIENT_API_KEY}`,
+          Authorization: `Bearer ${EFFECTIVE_DO_API_KEY}`,
           'Content-Type': 'application/json',
         },
         timeout: 60000, // 60 second timeout
