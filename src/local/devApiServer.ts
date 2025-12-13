@@ -58,6 +58,18 @@ type Storage = {
   getRequest: (reqId: string) => Promise<StoredRequest | null>;
 };
 
+function isValidDatabaseUrl(url: string | undefined): url is string {
+  if (!url) return false;
+  // Protect against unresolved templates like "${production-database.DATABASE_URL}"
+  if (url.includes("${")) return false;
+  try {
+    new URL(url);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 const DATABASE_URL = process.env.DATABASE_URL || process.env.POSTGRES_URL;
 
 const memoryRequests = new Map<string, StoredRequest>();
@@ -251,18 +263,27 @@ function createDbStorage(url: string): Storage {
 
 let storage: Storage = memoryStorage;
 
-if (DATABASE_URL) {
-  const dbStorage = createDbStorage(DATABASE_URL);
-  storage = dbStorage;
+if (isValidDatabaseUrl(DATABASE_URL)) {
+  try {
+    const dbStorage = createDbStorage(DATABASE_URL);
+    storage = dbStorage;
 
-  dbStorage.ready
-    .then(() => {
-      console.log("[storage] Using Postgres for request persistence");
-    })
-    .catch((err) => {
-      console.error("[storage] Postgres unavailable, falling back to memory:", err);
-      storage = memoryStorage;
-    });
+    dbStorage.ready
+      .then(() => {
+        console.log("[storage] Using Postgres for request persistence");
+      })
+      .catch((err) => {
+        console.error("[storage] Postgres unavailable, falling back to memory:", err);
+        storage = memoryStorage;
+      });
+  } catch (err) {
+    console.error("[storage] Invalid DATABASE_URL, using memory:", err);
+    storage = memoryStorage;
+  }
+} else {
+  console.warn(
+    "[storage] DATABASE_URL not set or not usable (likely unresolved template). Using in-memory storage."
+  );
 }
 
 async function ensureStorageReady(): Promise<Storage> {
