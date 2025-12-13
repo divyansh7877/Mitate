@@ -1,5 +1,9 @@
 import { functions } from './appwrite'
-import type { GenerateRequest, GenerationStatus, InfographicResult } from './types'
+import type {
+  GenerateRequest,
+  GenerationStatus,
+  InfographicResult,
+} from './types'
 
 // Function IDs from environment variables
 const GENERATE_FUNCTION_ID =
@@ -7,7 +11,7 @@ const GENERATE_FUNCTION_ID =
 const USE_MOCKS = import.meta.env.VITE_USE_MOCKS === 'true'
 
 // Mock data for development when backend is not reachable
-const MOCK_DELAY = 2000 // 2 seconds delay to simulate network
+const MOCK_DELAY = 4000 // 4 seconds delay to simulate network
 const mockStatusMap = new Map<string, GenerationStatus>()
 
 export const api = {

@@ -77,9 +77,7 @@ export const LandingPage = () => {
       </div>
       <Card className="w-full max-w-2xl">
         <CardHeader className="text-center">
-          <CardTitle className="text-3xl font-bold">
-            ArXiv Visual Explainer
-          </CardTitle>
+          <CardTitle className="text-3xl font-bold">Mitate (見立て)</CardTitle>
           <CardDescription className="text-lg mt-2">
             Transform dense research papers into easy-to-understand
             infographics.
