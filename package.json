@@ -9,11 +9,13 @@
     "test": "vitest run",
     "lint": "eslint",
     "format": "prettier",
-    "check": "prettier --write . && eslint --fix"
+    "check": "prettier --write . && eslint --fix",
+    "setup:appwrite": "bun run scripts/setup-appwrite.ts",
+    "test:offline": "bun run src/examples/testWithoutAPIs.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.0.0",
-    "@fal-ai/serverless-client": "^1.0.0",
+    "@fal-ai/client": "^1.7.0",
     "@fontsource-variable/inter": "^5.2.8",
     "@tailwindcss/vite": "^4.0.6",
     "@tanstack/react-devtools": "^0.7.0",
@@ -26,6 +28,7 @@
     "clsx": "^2.1.1",
     "lucide-react": "^0.561.0",
     "nitro": "latest",
+    "node-appwrite": "^21.0.0",
     "radix-ui": "^1.4.3",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
