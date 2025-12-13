@@ -1,0 +1,25 @@
+{
+  "lockfileVersion": 1,
+  "configVersion": 0,
+  "workspaces": {
+    "": {
+      "name": "starter-template",
+      "dependencies": {
+        "node-appwrite": "^14.1.0",
+        "zod": "^4.1.13",
+      },
+      "devDependencies": {
+        "prettier": "^3.2.5",
+      },
+    },
+  },
+  "packages": {
+    "node-appwrite": ["node-appwrite@14.1.0", "", { "dependencies": { "node-fetch-native-with-agent": "1.7.2" } }, "sha512-kuKAZrdaAcGYOMUXtxNb1j+uIy+FIMiiU1dFkgwTXLsMLeLvC6HJ8/FH/kN9JyrWR2a2zcGN7gWfyQgWYoLMTA=="],
+
+    "node-fetch-native-with-agent": ["node-fetch-native-with-agent@1.7.2", "", {}, "sha512-5MaOOCuJEvcckoz7/tjdx1M6OusOY6Xc5f459IaruGStWnKzlI1qpNgaAwmn4LmFYcsSlj+jBMk84wmmRxfk5g=="],
+
+    "prettier": ["prettier@3.2.5", "", { "bin": "bin/prettier.cjs" }, "sha512-3/GWa9aOC0YeD7LUfvOG2NiDyhOWRvt1k+rcKhOuYnMY24iiCphgneUfJDyFXd6rZCAnuLBv6UeAULtrhT/F4A=="],
+
+    "zod": ["zod@4.1.13", "", {}, "sha512-AvvthqfqrAhNH9dnfmrfKzX5upOdjUVJYFqNSlkmGf64gRaTzlPwz99IHYnVs28qYAybvAlBV+H7pn0saFY4Ig=="],
+  }
+}

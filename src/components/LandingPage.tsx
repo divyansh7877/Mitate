@@ -77,6 +77,9 @@ export const LandingPage = () => {
       </div>
       <Card className="w-full max-w-2xl">
         <CardHeader className="text-center">
+          <div className="flex justify-center mb-4">
+            <img src="/mitate-logo.png" alt="Mitate Logo" className="h-24 w-24 rounded-2xl shadow-lg" />
+          </div>
           <CardTitle className="text-3xl font-bold">
             ArXiv Visual Explainer
           </CardTitle>

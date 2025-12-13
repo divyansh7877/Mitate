@@ -3,12 +3,7 @@ import React, { createContext, useContext, useState, ReactNode } from 'react'
 export type KnowledgeLevel = 'beginner' | 'intermediate' | 'advanced'
 export type AppStep = 'landing' | 'loading' | 'result'
 
-export interface InfographicResult {
-  paperTitle: string
-  paperUrl: string
-  imageUrl: string
-  summary: string
-}
+import type { InfographicResult } from './types'
 
 interface AppContextType {
   step: AppStep

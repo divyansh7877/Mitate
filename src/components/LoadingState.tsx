@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
-import { useApp, InfographicResult } from '@/lib/app-context'
+import { useApp } from '@/lib/app-context'
+import type { InfographicResult } from '@/lib/types'
 import { api } from '@/lib/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -34,21 +35,19 @@ export const LoadingState = () => {
         if (status.status === 'generating_image') setCurrentStep(3)
 
         if (status.status === 'complete' && status.result) {
+          console.log('[LoadingState] Generation complete. Result:', status.result)
           clearInterval(pollInterval)
 
           // Transform API result to app context format
-          const result: InfographicResult = {
-            paperTitle: status.result.paper_title,
-            paperUrl: status.result.paper_url,
-            imageUrl: status.result.image_url,
-            summary: JSON.stringify(status.result.summary, null, 2),
-          }
+          // Directly use the result as it matches the schema now (mostly)
+          // We need to ensure types match perfectly. status.result is InfographicResult.
+          const result: InfographicResult = status.result
 
           setResult(result)
           setStep('result')
         } else if (status.status === 'failed') {
           clearInterval(pollInterval)
-          setError(status.error || 'Generation failed')
+          setError(status.message || 'Generation failed')
         }
       } catch (err) {
         console.error('Polling error:', err)

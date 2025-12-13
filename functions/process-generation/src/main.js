@@ -1,6 +1,8 @@
 import { Client, Databases, Storage, ID, InputFile } from 'node-appwrite'
 import axios from 'axios'
 import { parseStringPromise } from 'xml2js'
+import { createFiboService } from './services/fiboService.js'
+import { createPosterGenerationOrchestrator } from './services/posterGenerationOrchestrator.js'
 
 // Environment variables
 const {
@@ -120,20 +122,56 @@ export default async ({ req, res, log, error: logError }) => {
     // ============================================================
     await updateStatus('generating_image')
 
-    // For MVP, we'll use a placeholder or simple FIBO call
-    // In production, this would use the full PosterGenerationOrchestrator
+    // For real generation, use the PosterGenerationOrchestrator
     let imageUrl
+    let imageStorageId = null
+    let fiboMetadata = {}
 
     if (FIBO_API_KEY) {
       try {
-        imageUrl = await generateWithFibo(
-          summary,
-          knowledge_level,
-          log,
-          logError,
+        log('Initializing poster generation pipeline...')
+        const fiboService = createFiboService()
+        const orchestrator = createPosterGenerationOrchestrator(
+          fiboService,
+          storage,
+          BUCKET_ID
         )
+
+        const generationInput = {
+          summary: summary,
+          knowledge_level: knowledge_level,
+          tags: ['research', 'AI', 'science'], // Default tags
+          arxiv_id: paperMetadata.arxiv_id,
+          options: { generation_mode: 'single' }
+        }
+
+        const result = await orchestrator.generate(generationInput)
+
+        if (result.status === 'complete') {
+          // If we have a file ID, construct the view URL
+          if (result.storage_file_id) {
+            imageStorageId = result.storage_file_id
+            // We can construct the view URL if we want to store that instead of the temporary FIBO url
+            // But for now, let's keep the FIBO url or update if storage succeeds
+
+            // Construct Appwrite View URL
+            // https://cloud.appwrite.io/v1/storage/buckets/[BUCKET_ID]/files/[FILE_ID]/view?project=[PROJECT_ID]
+            imageUrl = `https://cloud.appwrite.io/v1/storage/buckets/${BUCKET_ID}/files/${imageStorageId}/view?project=${APPWRITE_FUNCTION_PROJECT_ID}`
+          } else {
+            imageUrl = result.final_image_url
+          }
+
+          fiboMetadata = result.metadata
+          log(`Poster generation success. Image URL: ${imageUrl}`)
+        } else {
+          throw new Error(`Generation returned status: ${result.status}`)
+        }
+
       } catch (fiboError) {
-        log(`FIBO generation failed: ${fiboError.message}, using placeholder`)
+        logError(`FIBO generation failed: ${fiboError.message}`)
+        console.error(fiboError)
+        // Fallback to placeholder
+        log('Falling back to placeholder image')
         imageUrl = `https://placehold.co/1024x1024/059669/white?text=${encodeURIComponent(summary.title)}`
       }
     } else {
@@ -152,10 +190,10 @@ export default async ({ req, res, log, error: logError }) => {
       paper_title: paperMetadata.title,
       paper_url: paperMetadata.arxiv_url,
       summary_json: JSON.stringify(summary),
-      fibo_structured_prompt: '', // Would contain full FIBO prompt in production
-      fibo_seed: Math.floor(Math.random() * 1000000),
+      fibo_structured_prompt: fiboMetadata.fibo_prompt ? JSON.stringify(fiboMetadata.fibo_prompt) : '',
+      fibo_seed: fiboMetadata.fibo_seed || Math.floor(Math.random() * 1000000),
       image_url: imageUrl,
-      image_storage_id: null, // Could upload to storage bucket here
+      image_storage_id: imageStorageId,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
@@ -453,17 +491,4 @@ function generateFallbackSummary(title, abstract, knowledgeLevel) {
   }
 }
 
-/**
- * Generate image with FIBO (simplified placeholder)
- */
-async function generateWithFibo(summary, knowledgeLevel, log, logError) {
-  // This is a simplified placeholder
-  // In production, this would use the full PosterGenerationOrchestrator
-  // from src/services/posterGenerationOrchestrator.ts
 
-  log('FIBO integration: Using placeholder (full integration pending)')
-
-  // Return placeholder that includes the paper title
-  const encodedTitle = encodeURIComponent(summary.title.substring(0, 50))
-  return `https://placehold.co/1024x1024/059669/white?text=${encodedTitle}`
-}

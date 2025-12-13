@@ -1,5 +1,7 @@
 import React from 'react'
+import ReactMarkdown from 'react-markdown'
 import { useApp } from '@/lib/app-context'
+import type { Summary } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -14,6 +16,8 @@ import { Download, RotateCcw, FileText, ArrowLeft } from 'lucide-react'
 export const ResultPage = () => {
   const { result, setStep, setQuery } = useApp()
 
+  console.log('[ResultPage] Rendering with result:', result)
+
   if (!result) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -26,8 +30,8 @@ export const ResultPage = () => {
   const handleDownload = () => {
     // Basic download implementation for the image
     const link = document.createElement('a')
-    link.href = result.imageUrl
-    link.download = `arxiv-explainer-${result.paperTitle.replace(/\s+/g, '-').toLowerCase()}.png`
+    link.href = result.image_url
+    link.download = `arxiv-explainer-${result.paper_title.replace(/\s+/g, '-').toLowerCase()}.png`
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
@@ -36,6 +40,24 @@ export const ResultPage = () => {
   const handleTryAnother = () => {
     setQuery('')
     setStep('landing')
+  }
+
+  const formatSummaryToMarkdown = (summary: Summary): string => {
+    let md = `**One Liner:** ${summary.one_liner}\n\n`
+
+    md += `### Key Concepts\n`
+    summary.key_concepts.forEach((concept) => {
+      md += `* **${concept.name}**: ${concept.explanation}\n`
+      md += `  > *Metaphor: ${concept.visual_metaphor}*\n`
+    })
+
+    md += `\n### Key Finding\n${summary.key_finding}\n`
+
+    if (summary.real_world_impact) {
+      md += `\n### Real World Impact\n${summary.real_world_impact}\n`
+    }
+
+    return md
   }
 
   return (
@@ -50,9 +72,10 @@ export const ResultPage = () => {
             {/* Placeholder for the Generated Infographic */}
             <div className="w-full aspect-square bg-muted flex items-center justify-center relative group">
               <img
-                src={result.imageUrl}
-                alt={`Infographic for ${result.paperTitle}`}
+                src={result.image_url}
+                alt={`Infographic for ${result.paper_title}`}
                 className="w-full h-full object-contain"
+                onError={(e) => console.error('[ResultPage] Failed to load image:', result.image_url, e)}
               />
             </div>
           </CardContent>
@@ -61,12 +84,12 @@ export const ResultPage = () => {
         <Card>
           <CardHeader>
             <CardTitle className="text-xl md:text-2xl">
-              {result.paperTitle}
+              {result.paper_title}
             </CardTitle>
             <CardDescription className="flex items-center gap-2 mt-2">
               <FileText className="h-4 w-4" />
               <a
-                href={result.paperUrl}
+                href={result.paper_url}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="hover:underline text-primary"
@@ -77,7 +100,9 @@ export const ResultPage = () => {
           </CardHeader>
           <CardContent>
             <h3 className="font-semibold mb-2">Summary</h3>
-            <p className="text-foreground leading-relaxed">{result.summary}</p>
+            <div className="text-foreground leading-relaxed prose dark:prose-invert max-w-none">
+              <ReactMarkdown>{formatSummaryToMarkdown(result.summary)}</ReactMarkdown>
+            </div>
           </CardContent>
           <CardFooter className="flex flex-col sm:flex-row gap-4 pt-6">
             <Button onClick={handleDownload} className="w-full sm:w-auto">
