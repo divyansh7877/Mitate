@@ -26,7 +26,12 @@ async function generateTestPoster() {
   const startTime = Date.now();
 
   try {
-    const result = await orchestrator.generate(vitPaperBeginner);
+    const result = await orchestrator.generate({
+    ...vitPaperBeginner,
+    options: {
+      generation_mode: "modular"
+    }
+  });
 
     const totalTime = Date.now() - startTime;
 
