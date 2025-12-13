@@ -1,5 +1,4 @@
 import { Client, Databases, Storage, ID, InputFile } from 'node-appwrite'
-import Gradient from '@gradientai/nodejs-sdk'
 import axios from 'axios'
 import { parseStringPromise } from 'xml2js'
 
@@ -7,13 +6,16 @@ import { parseStringPromise } from 'xml2js'
 const {
   APPWRITE_FUNCTION_PROJECT_ID,
   APPWRITE_API_KEY,
-  GRADIENT_ACCESS_TOKEN,
-  GRADIENT_WORKSPACE_ID,
+  DO_GRADIENT_API_KEY, // DigitalOcean Gradient API Key
+  DO_GRADIENT_MODEL = 'meta-llama/llama-3-70b-instruct', // Default model
   FIBO_API_KEY,
   FAL_KEY,
   DATABASE_ID = 'mitate-db',
   BUCKET_ID = 'poster-images',
 } = process.env
+
+// DigitalOcean Gradient Serverless Inference endpoint
+const DO_GRADIENT_ENDPOINT = 'https://inference.do-ai.run/v1/chat/completions'
 
 export default async ({ req, res, log, error: logError }) => {
   const client = new Client()
@@ -99,11 +101,11 @@ export default async ({ req, res, log, error: logError }) => {
     log(`Found paper: ${paperMetadata.title} (${paperMetadata.arxiv_id})`)
 
     // ============================================================
-    // Step 3: Agent 2 - Gradient AI Summarizer
+    // Step 3: Agent 2 - DigitalOcean Gradient AI Summarizer
     // ============================================================
     await updateStatus('summarizing')
 
-    const summary = await summarizeWithGradientAI(
+    const summary = await summarizeWithDigitalOceanGradient(
       paperMetadata.abstract,
       paperMetadata.title,
       knowledge_level,
@@ -249,48 +251,54 @@ async function searchArxivByTopic(query, log, logError) {
 }
 
 /**
- * Summarize paper using Gradient AI
+ * Summarize paper using DigitalOcean Gradient AI
  */
-async function summarizeWithGradientAI(
+async function summarizeWithDigitalOceanGradient(
   abstract,
   title,
   knowledgeLevel,
   log,
   logError,
 ) {
-  if (!GRADIENT_ACCESS_TOKEN || !GRADIENT_WORKSPACE_ID) {
-    logError('Gradient AI credentials not configured, using fallback')
+  if (!DO_GRADIENT_API_KEY) {
+    logError('DigitalOcean Gradient API key not configured, using fallback')
     return generateFallbackSummary(title, abstract, knowledgeLevel)
   }
 
   try {
-    const gradient = new Gradient({
-      accessToken: GRADIENT_ACCESS_TOKEN,
-      workspaceId: GRADIENT_WORKSPACE_ID,
-    })
-
     const prompt = buildSummarizationPrompt(abstract, title, knowledgeLevel)
 
-    log('Calling Gradient AI for summarization...')
+    log('Calling DigitalOcean Gradient AI for summarization...')
 
-    const response = await gradient.chat.completions.create({
-      model: 'llama-3-70b-instruct',
-      messages: [
-        {
-          role: 'system',
-          content:
-            'You are an expert at summarizing research papers for different knowledge levels. Always return valid JSON only.',
+    // Call DigitalOcean Gradient Serverless Inference API
+    const response = await axios.post(
+      DO_GRADIENT_ENDPOINT,
+      {
+        model: DO_GRADIENT_MODEL,
+        messages: [
+          {
+            role: 'system',
+            content:
+              'You are an expert at summarizing research papers for different knowledge levels. Always return valid JSON only, no markdown formatting.',
+          },
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+        temperature: 0.7,
+        max_tokens: 2000,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${DO_GRADIENT_API_KEY}`,
+          'Content-Type': 'application/json',
         },
-        {
-          role: 'user',
-          content: prompt,
-        },
-      ],
-      temperature: 0.7,
-      maxTokens: 2000,
-    })
+        timeout: 60000, // 60 second timeout
+      },
+    )
 
-    const content = response.choices[0].message.content.trim()
+    const content = response.data.choices[0].message.content.trim()
 
     // Try to extract JSON if wrapped in markdown code blocks
     let jsonContent = content
@@ -307,14 +315,14 @@ async function summarizeWithGradientAI(
       ...summary,
     }
   } catch (error) {
-    logError(`Gradient AI error: ${error.message}`)
+    logError(`DigitalOcean Gradient AI error: ${error.message}`)
     log('Falling back to basic summary generation')
     return generateFallbackSummary(title, abstract, knowledgeLevel)
   }
 }
 
 /**
- * Build summarization prompt for Gradient AI
+ * Build summarization prompt for DigitalOcean Gradient AI
  */
 function buildSummarizationPrompt(abstract, title, knowledgeLevel) {
   const levelInstructions = {
@@ -406,7 +414,7 @@ function validateSummary(summary) {
 }
 
 /**
- * Generate fallback summary (when Gradient AI unavailable)
+ * Generate fallback summary (when DigitalOcean Gradient AI unavailable)
  */
 function generateFallbackSummary(title, abstract, knowledgeLevel) {
   const abstractSentences = abstract.split('. ').filter((s) => s.length > 20)
