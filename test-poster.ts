@@ -26,14 +26,7 @@ async function generateTestPoster() {
   const startTime = Date.now();
 
   try {
-    const result = await orchestrator.generate({
-      ...transformerPaperBeginner,
-      options: {
-        include_layout_previews: false,  // Skip previews for speed
-        include_variations: false,       // Skip variations for speed
-        generation_mode: 'high_quality'  // Use FIBO
-      }
-    });
+    const result = await orchestrator.generate(transformerPaperBeginner);
 
     const totalTime = Date.now() - startTime;
 
@@ -68,8 +61,8 @@ async function generateTestPoster() {
     console.error('Message:', error.message);
     console.error('\nFull error:', error);
     console.log('\nTroubleshooting:');
-    console.log('- Check your API keys are valid');
-    console.log('- Ensure you have credits/quota in your FIBO/FAL accounts');
+    console.log('- Check your API key is valid');
+    console.log('- Ensure you have credits/quota in your FIBO account');
     console.log('- Check TESTING_GUIDE.md for more help\n');
     process.exit(1);
   }

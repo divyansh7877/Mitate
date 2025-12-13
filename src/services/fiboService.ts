@@ -12,7 +12,7 @@ import type {
 export class FiboService {
   private apiKey: string;
   private baseUrl: string;
-  private maxPollAttempts: number = 60; // 60 attempts * 2s = 2 minutes max
+  private maxPollAttempts: number = 150; // 150 attempts * 2s = 5 minutes max
   private pollIntervalMs: number = 2000;
 
   constructor(apiKey: string, baseUrl: string = "https://engine.prod.bria-api.com/v2") {
@@ -35,14 +35,15 @@ export class FiboService {
       const response = await fetch(`${this.baseUrl}/image/generate`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${this.apiKey}`,
+          "api_token": this.apiKey,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          structured_prompt: request.structured_prompt,
+          structured_prompt: JSON.stringify(request.structured_prompt),
           seed: request.seed || this.generateSeed(),
           image_size: request.image_size || { width: 1024, height: 1024 },
           output_format: "png",
+          sync: true,
         }),
       });
 
@@ -53,25 +54,42 @@ export class FiboService {
         );
       }
 
-      const result: FiboGenerationResponse = await response.json();
+      const rawResult: any = await response.json();
+      console.log("FIBO API Raw Response:", JSON.stringify(rawResult, null, 2));
 
-      // If the generation is async, poll for completion
-      if (result.status === "pending" || result.status === "processing") {
-        return await this.pollForCompletion(result.request_id, startTime);
+      // Handle synchronous success (image returned immediately)
+      if (rawResult.result && rawResult.result.image_url) {
+        return {
+          request_id: rawResult.request_id,
+          status: "completed",
+          image_url: rawResult.result.image_url,
+          generation_time_ms: Date.now() - startTime,
+        };
       }
 
-      // If completed immediately, return result
-      if (result.status === "completed") {
-        result.generation_time_ms = Date.now() - startTime;
-        return result;
+      // Handle async response (status_url provided)
+      const status = rawResult.status?.toUpperCase();
+      if (status === "PENDING" || status === "PROCESSING" || status === "IN_PROGRESS" || (!status && rawResult.request_id)) {
+        // Pass status_url if available
+        return await this.pollForCompletion(rawResult.request_id, startTime, rawResult.status_url);
+      }
+
+      // If completed immediately but structure is different (fallback)
+      if (status === "COMPLETED" || status === "COMPLETE") {
+        return {
+          request_id: rawResult.request_id,
+          status: "completed",
+          image_url: rawResult.result?.image_url || rawResult.image_url,
+          generation_time_ms: Date.now() - startTime,
+        };
       }
 
       // If failed, throw error
-      if (result.status === "failed") {
-        throw new Error(`FIBO generation failed: ${result.error || "Unknown error"}`);
+      if (status === "FAILED" || status === "ERROR") {
+        throw new Error(`FIBO generation failed: ${rawResult.error || "Unknown error"}`);
       }
 
-      return result;
+      throw new Error(`Unexpected FIBO response structure: ${JSON.stringify(rawResult)}`);
     } catch (error) {
       console.error("FIBO generation error:", error);
       throw error;
@@ -83,17 +101,30 @@ export class FiboService {
    */
   private async pollForCompletion(
     requestId: string,
-    startTime: number
+    startTime: number,
+    statusUrl?: string
   ): Promise<FiboGenerationResponse> {
     for (let attempt = 0; attempt < this.maxPollAttempts; attempt++) {
       await this.sleep(this.pollIntervalMs);
 
       try {
+        // Note: The previous log showed status_url as .../status/..., but typically result endpoint is needed? 
+        // Actually, if status_url is provided, use it. 
+        // If not, maybe /result/ is better? Or /status/?
+        // The log showed: "status_url": ".../v2/status/..."
+        // But previously I used /image/status/ which failed with 404.
+        // Let's rely on statusUrl if possible. If not, default to /image/result/ which is common in Bria? 
+        // Wait, Bria v2 usually has /v2/image/generate and result via webhook or GET.
+        // If I use statusUrl provided by API it is safest.
+        // If fallback is needed:
+        // The error was 404 on .../image/status/...
+        // Let's use statusUrl || `${this.baseUrl}/status/${requestId}` as seen in the response.
+
         const response = await fetch(
-          `${this.baseUrl}/image/status/${requestId}`,
+          statusUrl || `${this.baseUrl}/status/${requestId}`,
           {
             headers: {
-              Authorization: `Bearer ${this.apiKey}`,
+              "api_token": this.apiKey,
             },
           }
         );
@@ -105,16 +136,21 @@ export class FiboService {
           continue;
         }
 
-        const result: FiboGenerationResponse = await response.json();
+        const rawResult: any = await response.json();
+        const status = rawResult.status?.toUpperCase();
 
-        if (result.status === "completed") {
-          result.generation_time_ms = Date.now() - startTime;
-          return result;
+        if (status === "COMPLETED" || status === "COMPLETE") {
+          return {
+            request_id: requestId,
+            status: "completed",
+            image_url: rawResult.result?.image_url || rawResult.image_url,
+            generation_time_ms: Date.now() - startTime,
+          };
         }
 
-        if (result.status === "failed") {
+        if (status === "FAILED" || status === "ERROR") {
           throw new Error(
-            `FIBO generation failed: ${result.error || "Unknown error"}`
+            `FIBO generation failed: ${rawResult.error || "Unknown error"}`
           );
         }
 
@@ -250,11 +286,28 @@ export class FiboService {
    */
   async testConnection(): Promise<boolean> {
     try {
-      const response = await fetch(`${this.baseUrl}/health`, {
+      // Use a minimal generation request to verify the API key since there is no /health endpoint
+      const response = await fetch(`${this.baseUrl}/image/generate`, {
+        method: "POST",
         headers: {
-          Authorization: `Bearer ${this.apiKey}`,
+          "api_token": this.apiKey,
+          "Content-Type": "application/json",
         },
+        body: JSON.stringify({
+          prompt: "test connection",
+          sync: true,
+        }),
       });
+
+      if (!response.ok) {
+        try {
+          const errorText = await response.text();
+          console.error(`FIBO connection test failed (${response.status}): ${errorText}`);
+        } catch (e) {
+          console.error(`FIBO connection test failed (${response.status})`);
+        }
+      }
+
       return response.ok;
     } catch (error) {
       console.error("FIBO connection test failed:", error);

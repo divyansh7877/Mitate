@@ -38,9 +38,7 @@ export interface GenerationInput {
 }
 
 export interface GenerationOptions {
-  include_layout_previews?: boolean;
-  include_variations?: boolean;
-  generation_mode?: "fast" | "high_quality";
+  // Placeholder for future options
 }
 
 // ============================================================================
@@ -50,26 +48,16 @@ export interface GenerationOptions {
 export type GenerationStatus =
   | "pending"
   | "generating_layout"
-  | "generating_icons"
   | "generating_final"
-  | "generating_variations"
   | "complete"
   | "failed";
 
 export interface GenerationOutput {
   request_id: string;
   status: GenerationStatus;
-  layout_previews?: string[];
   final_image_url?: string;
-  variations?: StyleVariation[];
   metadata: GenerationMetadata;
   error?: string;
-}
-
-export interface StyleVariation {
-  name: string;
-  description: string;
-  url: string;
 }
 
 export interface GenerationMetadata {
@@ -147,47 +135,10 @@ export interface FiboGenerationRequest {
 export interface FiboGenerationResponse {
   request_id: string;
   status: "pending" | "processing" | "completed" | "failed";
+  status_url?: string;
   image_url?: string;
   generation_time_ms?: number;
   error?: string;
-}
-
-// ============================================================================
-// FAL TYPES
-// ============================================================================
-
-export interface FalLayoutPreviewRequest {
-  concepts: Concept[];
-  knowledge_level: KnowledgeLevel;
-  num_variations?: number;
-}
-
-export interface FalIconGenerationRequest {
-  visual_metaphors: string[];
-  style: "flat" | "isometric" | "3d";
-}
-
-export interface FalVariationRequest {
-  base_image_url: string;
-  variations: Array<{
-    name: string;
-    prompt: string;
-    strength?: number;
-  }>;
-}
-
-export interface FalImage {
-  url: string;
-  width: number;
-  height: number;
-  content_type: string;
-}
-
-export interface FalGenerationResponse {
-  images: FalImage[];
-  seed: number;
-  has_nsfw_concepts: boolean[];
-  prompt: string;
 }
 
 // ============================================================================
@@ -251,10 +202,7 @@ export interface PosterGenerationDocument {
   knowledge_level: KnowledgeLevel;
   fibo_structured_prompt?: FiboStructuredPrompt;
   fibo_seed?: number;
-  fal_layout_urls?: string[];
-  fal_icon_urls?: string[];
   final_image_url?: string;
-  variation_urls?: Record<string, string>;
   generation_time_ms?: number;
   user_preferences?: UserPreferences;
   error?: string;
