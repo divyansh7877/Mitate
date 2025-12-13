@@ -23,7 +23,6 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { ThemeToggle } from '@/components/ThemeToggle'
 
 const formSchema = z.object({
   query: z.string().min(1, 'Please enter a topic or ArXiv link.'),
@@ -72,15 +71,13 @@ export const LandingPage = () => {
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-background p-4">
-      <div className="fixed top-4 right-4 z-50">
-        <ThemeToggle />
-      </div>
       <Card className="w-full max-w-2xl">
         <CardHeader className="text-center">
-          <CardTitle className="text-3xl font-bold">Mitate (見立て)</CardTitle>
+          <CardTitle className="text-3xl font-bold">
+            Mitate (見立て)
+          </CardTitle>
           <CardDescription className="text-lg mt-2">
-            Transform dense research papers into easy-to-understand
-            infographics.
+            Turn research papers into clear, visual explainers.
           </CardDescription>
         </CardHeader>
         <CardContent>
