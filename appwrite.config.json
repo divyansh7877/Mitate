@@ -1,0 +1,407 @@
+{
+    "projectId": "693d8dcf002f5a572b12",
+    "endpoint": "https://nyc.cloud.appwrite.io/v1",
+    "projectName": "Mitate",
+    "settings": {
+        "services": {
+            "account": true,
+            "avatars": true,
+            "databases": true,
+            "locale": true,
+            "health": true,
+            "storage": true,
+            "teams": true,
+            "users": true,
+            "sites": true,
+            "functions": true,
+            "graphql": true,
+            "messaging": true
+        },
+        "auth": {
+            "methods": {
+                "jwt": true,
+                "phone": true,
+                "invites": true,
+                "anonymous": true,
+                "email-otp": true,
+                "magic-url": true,
+                "email-password": true
+            },
+            "security": {
+                "duration": 31536000,
+                "limit": 0,
+                "sessionsLimit": 10,
+                "passwordHistory": 0,
+                "passwordDictionary": false,
+                "personalDataCheck": false,
+                "sessionAlerts": false,
+                "mockNumbers": []
+            }
+        }
+    },
+    "tablesDB": [
+        {
+            "$id": "mitate-db",
+            "name": "Mitate Database",
+            "enabled": true
+        }
+    ],
+    "tables": [
+        {
+            "$id": "requests",
+            "$permissions": [
+                "read(\"any\")",
+                "create(\"users\")",
+                "update(\"users\")",
+                "delete(\"users\")"
+            ],
+            "databaseId": "mitate-db",
+            "name": "Requests",
+            "enabled": true,
+            "rowSecurity": false,
+            "columns": [
+                {
+                    "key": "user_id",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 255,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "query",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 1000,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "query_type",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "elements": [
+                        "topic",
+                        "arxiv_link"
+                    ],
+                    "format": "enum",
+                    "default": null
+                },
+                {
+                    "key": "knowledge_level",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "elements": [
+                        "beginner",
+                        "intermediate",
+                        "advanced"
+                    ],
+                    "format": "enum",
+                    "default": null
+                },
+                {
+                    "key": "status",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "elements": [
+                        "pending",
+                        "finding_paper",
+                        "summarizing",
+                        "generating_image",
+                        "complete",
+                        "failed"
+                    ],
+                    "format": "enum",
+                    "default": null
+                },
+                {
+                    "key": "created_at",
+                    "type": "datetime",
+                    "required": true,
+                    "array": false,
+                    "format": "",
+                    "default": null
+                },
+                {
+                    "key": "updated_at",
+                    "type": "datetime",
+                    "required": true,
+                    "array": false,
+                    "format": "",
+                    "default": null
+                }
+            ],
+            "indexes": []
+        },
+        {
+            "$id": "results",
+            "$permissions": [
+                "read(\"any\")",
+                "create(\"users\")",
+                "update(\"users\")",
+                "delete(\"users\")"
+            ],
+            "databaseId": "mitate-db",
+            "name": "Results",
+            "enabled": true,
+            "rowSecurity": false,
+            "columns": [
+                {
+                    "key": "request_id",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 255,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "arxiv_id",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 255,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "paper_title",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 500,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "paper_url",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 500,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "summary_json",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 10000,
+                    "default": null,
+                    "encrypt": false
+                }
+            ],
+            "indexes": []
+        },
+        {
+            "$id": "poster_generations",
+            "$permissions": [
+                "read(\"any\")",
+                "create(\"users\")",
+                "update(\"users\")",
+                "delete(\"users\")"
+            ],
+            "databaseId": "mitate-db",
+            "name": "Poster Generations",
+            "enabled": true,
+            "rowSecurity": false,
+            "columns": [
+                {
+                    "key": "request_id",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 255,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "status",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "elements": [
+                        "pending",
+                        "processing",
+                        "complete",
+                        "failed"
+                    ],
+                    "format": "enum",
+                    "default": null
+                },
+                {
+                    "key": "input_summary",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "size": 65535,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "knowledge_level",
+                    "type": "string",
+                    "required": true,
+                    "array": false,
+                    "elements": [
+                        "beginner",
+                        "intermediate",
+                        "advanced"
+                    ],
+                    "format": "enum",
+                    "default": null
+                },
+                {
+                    "key": "fibo_structured_prompt",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 65535,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "fibo_seed",
+                    "type": "integer",
+                    "required": false,
+                    "array": false,
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807,
+                    "default": null
+                },
+                {
+                    "key": "fal_layout_urls",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 16384,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "fal_icon_urls",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 16384,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "final_image_url",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 2000,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "variation_urls",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 16384,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "generation_time_ms",
+                    "type": "integer",
+                    "required": false,
+                    "array": false,
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807,
+                    "default": null
+                },
+                {
+                    "key": "user_preferences",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 16384,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "error",
+                    "type": "string",
+                    "required": false,
+                    "array": false,
+                    "size": 1000,
+                    "default": null,
+                    "encrypt": false
+                },
+                {
+                    "key": "created_at",
+                    "type": "datetime",
+                    "required": true,
+                    "array": false,
+                    "format": "",
+                    "default": null
+                },
+                {
+                    "key": "updated_at",
+                    "type": "datetime",
+                    "required": true,
+                    "array": false,
+                    "format": "",
+                    "default": null
+                }
+            ],
+            "indexes": []
+        }
+    ],
+    "buckets": [
+        {
+            "$id": "poster-images",
+            "$permissions": [
+                "read(\"any\")",
+                "create(\"users\")",
+                "update(\"users\")",
+                "delete(\"users\")"
+            ],
+            "fileSecurity": false,
+            "name": "Poster Images",
+            "enabled": true,
+            "maximumFileSize": 30000000,
+            "allowedFileExtensions": [
+                "png",
+                "jpg",
+                "jpeg",
+                "webp"
+            ],
+            "compression": "none",
+            "encryption": true,
+            "antivirus": true
+        }
+    ],
+    "functions": [
+        {
+            "$id": "693db15f0009c3b28c94",
+            "name": "process-generation",
+            "runtime": "node-18.0",
+            "specification": "s-0.5vcpu-512mb",
+            "execute": [
+                "any"
+            ],
+            "events": [],
+            "scopes": [
+                "users.read"
+            ],
+            "schedule": "",
+            "timeout": 15,
+            "enabled": true,
+            "logging": true,
+            "entrypoint": "src/main.js",
+            "commands": "npm install",
+            "path": "functions/process-generation"
+        }
+    ]
+}
