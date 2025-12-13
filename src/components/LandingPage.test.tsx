@@ -12,7 +12,7 @@ const renderWithProvider = (ui: React.ReactElement) => {
 describe('LandingPage', () => {
   it('renders correctly', () => {
     renderWithProvider(<LandingPage />)
-    expect(screen.getByText('ArXiv Visual Explainer')).toBeInTheDocument()
+    expect(screen.getByText('Mitate (見立て)')).toBeInTheDocument()
     expect(screen.getByText('Generate Visual Explainer')).toBeInTheDocument()
   })
 
