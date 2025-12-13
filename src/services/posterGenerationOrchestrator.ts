@@ -1,41 +1,51 @@
 /**
  * Poster Generation Orchestrator
- * Coordinates FAL, FIBO, Layout Engine, and Prompt Builder to generate posters
+ * Coordinates FIBO, Layout Engine, and Prompt Builder to generate posters
  */
 
 import type {
   GenerationInput,
   GenerationOutput,
   GenerationStatus,
-  StyleVariation,
 } from "../types/poster";
 import { FiboService } from "./fiboService";
-import { FalService } from "./falService";
 import { LayoutEngine } from "./layoutEngine";
 import { FiboStructuredPromptBuilder } from "./fiboPromptBuilder";
+import { downloadImage, downloadImages, generatePosterFilename } from "../utils/imageDownloader";
 
 export class PosterGenerationOrchestrator {
   private fiboService: FiboService;
-  private falService: FalService;
   private layoutEngine: LayoutEngine;
   private promptBuilder: FiboStructuredPromptBuilder;
 
   constructor(
     fiboService: FiboService,
-    falService: FalService,
-    layoutEngine: LayoutEngine,
-    promptBuilder: FiboStructuredPromptBuilder
+    layoutEngine?: LayoutEngine,
+    promptBuilder?: FiboStructuredPromptBuilder
   ) {
     this.fiboService = fiboService;
-    this.falService = falService;
-    this.layoutEngine = layoutEngine;
-    this.promptBuilder = promptBuilder;
+    this.layoutEngine = layoutEngine || new LayoutEngine();
+    this.promptBuilder = promptBuilder || new FiboStructuredPromptBuilder();
   }
 
   /**
    * Generate a poster from research paper summary
+   * Supports both single-image and modular generation modes
    */
   async generate(input: GenerationInput): Promise<GenerationOutput> {
+    // Check if modular generation is requested
+    if (input.options?.generation_mode === "modular") {
+      return this.generateModular(input);
+    }
+
+    // Default: single-image generation
+    return this.generateSingleImage(input);
+  }
+
+  /**
+   * Generate poster as a single image (original method)
+   */
+  private async generateSingleImage(input: GenerationInput): Promise<GenerationOutput> {
     const requestId = this.generateRequestId();
     const startTime = Date.now();
 
@@ -56,58 +66,9 @@ export class PosterGenerationOrchestrator {
 
       console.log(`[${requestId}] Layout calculated: ${layout.type}`);
 
-      // Stage 2: Optional - Generate layout previews with FAL
-      let layoutPreviews: string[] | undefined;
-
-      if (input.options?.include_layout_previews) {
-        try {
-          layoutPreviews = await this.falService.generateLayoutPreviews({
-            concepts: input.summary.key_concepts,
-            knowledge_level: input.knowledge_level,
-            num_variations: 3,
-          });
-
-          console.log(
-            `[${requestId}] Generated ${layoutPreviews.length} layout previews`
-          );
-        } catch (error) {
-          console.warn(
-            `[${requestId}] Layout preview generation failed, continuing:`,
-            error
-          );
-          // Continue without previews
-        }
-      }
-
-      // Stage 3: Optional - Generate icons for visual metaphors with FAL
-      const status2: GenerationStatus = "generating_icons";
-
-      if (input.options?.generation_mode !== "fast") {
-        console.log(`[${requestId}] ${status2}`);
-
-        try {
-          const visualMetaphors = input.summary.key_concepts.map(
-            (c) => c.visual_metaphor
-          );
-
-          const icons = await this.falService.generateIcons({
-            visual_metaphors: visualMetaphors,
-            style: input.knowledge_level === "beginner" ? "flat" : "isometric",
-          });
-
-          console.log(`[${requestId}] Generated ${icons.length} icons`);
-          // Icons could be used in the prompt builder, but for now we'll skip integration
-        } catch (error) {
-          console.warn(
-            `[${requestId}] Icon generation failed, continuing:`,
-            error
-          );
-        }
-      }
-
-      // Stage 4: Build FIBO structured prompt
-      const status3: GenerationStatus = "generating_final";
-      console.log(`[${requestId}] ${status3}`);
+      // Stage 2: Build FIBO structured prompt
+      const status2: GenerationStatus = "generating_final";
+      console.log(`[${requestId}] ${status2}`);
 
       const structuredPrompt = this.promptBuilder.build(input, layout);
 
@@ -141,29 +102,20 @@ export class PosterGenerationOrchestrator {
 
       console.log(`[${requestId}] FIBO generation completed successfully`);
 
-      // Stage 6: Optional - Generate style variations with FAL
-      let variations: StyleVariation[] | undefined;
+      // Download and save the image
+      const filename = generatePosterFilename(requestId, 'single');
+      console.log(`[${requestId}] Downloading image to output folder...`);
 
-      if (input.options?.include_variations) {
-        const status4: GenerationStatus = "generating_variations";
-        console.log(`[${requestId}] ${status4}`);
+      const downloadResult = await downloadImage(
+        fiboResult.image_url,
+        `${filename}.png`,
+        './output'
+      );
 
-        try {
-          const presetVariations = this.falService.getPresetVariations();
-
-          variations = await this.falService.generateStyleVariations({
-            base_image_url: fiboResult.image_url,
-            variations: presetVariations.slice(0, 3), // Generate 3 variations
-          });
-
-          console.log(`[${requestId}] Generated ${variations.length} variations`);
-        } catch (error) {
-          console.warn(
-            `[${requestId}] Style variation generation failed:`,
-            error
-          );
-          // Continue without variations
-        }
+      if (downloadResult.success) {
+        console.log(`[${requestId}] ✓ Image saved to: ${downloadResult.localPath}`);
+      } else {
+        console.warn(`[${requestId}] ✗ Failed to save image locally: ${downloadResult.error}`);
       }
 
       // Complete
@@ -173,16 +125,15 @@ export class PosterGenerationOrchestrator {
       return {
         request_id: requestId,
         status: "complete",
-        layout_previews: layoutPreviews,
         final_image_url: fiboResult.image_url,
-        variations: variations,
         metadata: {
           generation_time_ms: totalTime,
           fibo_seed: fiboSeed,
           fibo_prompt: structuredPrompt,
           knowledge_level: input.knowledge_level,
           timestamp: new Date().toISOString(),
-        },
+          local_path: downloadResult.localPath,
+        } as any,
       };
     } catch (error) {
       console.error(`[${requestId}] Generation failed:`, error);
@@ -202,36 +153,131 @@ export class PosterGenerationOrchestrator {
   }
 
   /**
-   * Generate a quick poster using only FAL (fallback or fast mode)
+   * Generate poster in modular sections (header, concepts, footer)
+   * Each section is generated separately for better text quality and less crowding
    */
-  async generateFastMode(input: GenerationInput): Promise<GenerationOutput> {
+  private async generateModular(input: GenerationInput): Promise<GenerationOutput> {
     const requestId = this.generateRequestId();
     const startTime = Date.now();
 
-    console.log(`[${requestId}] Starting FAST mode poster generation with FAL`);
+    console.log(`[${requestId}] Starting MODULAR poster generation`);
+    console.log(`[${requestId}] Will generate ${input.summary.key_concepts.length + 2} sections (header + ${input.summary.key_concepts.length} concepts + footer)`);
+    console.log(`[${requestId}] Knowledge level: ${input.knowledge_level}`);
 
     try {
-      const imageUrl = await this.falService.generateQuickPoster(
-        input.summary.title,
-        input.summary.key_concepts,
+      const layout = this.layoutEngine.calculateLayout(
+        input.summary.key_concepts.length,
         input.knowledge_level,
-        input.summary.key_finding
+        input.tags
       );
 
+      console.log(`[${requestId}] Layout calculated: ${layout.type}`);
+
+      const sectionImages: string[] = [];
+      const fiboSeed = Math.floor(Math.random() * 1000000);
+
+      // Generate header section
+      console.log(`[${requestId}] Generating header section...`);
+      const headerPrompt = this.promptBuilder.buildHeaderSection(input, layout);
+      const headerValidation = this.fiboService.validateStructuredPrompt(headerPrompt);
+      if (!headerValidation.valid) {
+        throw new Error(`Invalid header prompt: ${headerValidation.errors.join(", ")}`);
+      }
+
+      const headerResult = await this.fiboService.generatePoster({
+        structured_prompt: headerPrompt,
+        seed: fiboSeed,
+        image_size: { width: 1600, height: 300 }, // Wide but short for header
+      });
+
+      if (headerResult.image_url) {
+        sectionImages.push(headerResult.image_url);
+        console.log(`[${requestId}] Header section generated ✓`);
+      }
+
+      // Generate each concept section
+      for (let i = 0; i < input.summary.key_concepts.length; i++) {
+        console.log(`[${requestId}] Generating concept ${i + 1}/${input.summary.key_concepts.length}...`);
+
+        const conceptPrompt = this.promptBuilder.buildConceptSection(
+          input.summary.key_concepts[i],
+          i,
+          input.knowledge_level,
+          layout
+        );
+
+        const conceptValidation = this.fiboService.validateStructuredPrompt(conceptPrompt);
+        if (!conceptValidation.valid) {
+          console.warn(`[${requestId}] Skipping concept ${i + 1}: ${conceptValidation.errors.join(", ")}`);
+          continue;
+        }
+
+        const conceptResult = await this.fiboService.generatePoster({
+          structured_prompt: conceptPrompt,
+          seed: fiboSeed + i + 1,
+          image_size: { width: 1600, height: 400 }, // Wide format for better text visibility
+        });
+
+        if (conceptResult.image_url) {
+          sectionImages.push(conceptResult.image_url);
+          console.log(`[${requestId}] Concept ${i + 1} generated ✓`);
+        }
+      }
+
+      // Generate footer section
+      console.log(`[${requestId}] Generating footer section...`);
+      const footerPrompt = this.promptBuilder.buildFooterSection(input, layout);
+      const footerValidation = this.fiboService.validateStructuredPrompt(footerPrompt);
+      if (!footerValidation.valid) {
+        throw new Error(`Invalid footer prompt: ${footerValidation.errors.join(", ")}`);
+      }
+
+      const footerResult = await this.fiboService.generatePoster({
+        structured_prompt: footerPrompt,
+        seed: fiboSeed + 1000,
+        image_size: { width: 1600, height: 200 }, // Wide but short for footer
+      });
+
+      if (footerResult.image_url) {
+        sectionImages.push(footerResult.image_url);
+        console.log(`[${requestId}] Footer section generated ✓`);
+      }
+
       const totalTime = Date.now() - startTime;
+      console.log(`[${requestId}] All sections generated successfully in ${totalTime}ms`);
+      console.log(`[${requestId}] Section URLs: ${sectionImages.length} images ready for composition`);
+
+      // Download and save all section images
+      const filename = generatePosterFilename(requestId, 'modular');
+      console.log(`[${requestId}] Downloading ${sectionImages.length} section images to output folder...`);
+
+      const downloadResults = await downloadImages(
+        sectionImages,
+        filename,
+        './output'
+      );
+
+      const localPaths = downloadResults
+        .filter(r => r.success)
+        .map(r => r.localPath);
+
+      console.log(`[${requestId}] ✓ Saved ${localPaths.length}/${sectionImages.length} sections locally`);
 
       return {
         request_id: requestId,
         status: "complete",
-        final_image_url: imageUrl,
+        final_image_url: sectionImages[0], // Return first section URL (or could return JSON array)
         metadata: {
           generation_time_ms: totalTime,
+          fibo_seed: fiboSeed,
           knowledge_level: input.knowledge_level,
           timestamp: new Date().toISOString(),
-        },
+          section_urls: sectionImages, // Store all section URLs for composition
+          local_paths: localPaths, // Store local file paths
+        } as any,
       };
     } catch (error) {
-      console.error(`[${requestId}] Fast mode generation failed:`, error);
+      console.error(`[${requestId}] Modular generation failed:`, error);
 
       return {
         request_id: requestId,
@@ -265,41 +311,21 @@ export class PosterGenerationOrchestrator {
   }
 
   /**
-   * Generate only style variations for an existing poster
-   */
-  async generateVariationsOnly(
-    baseImageUrl: string
-  ): Promise<StyleVariation[]> {
-    console.log("Generating style variations for existing poster");
-
-    const presetVariations = this.falService.getPresetVariations();
-
-    return this.falService.generateStyleVariations({
-      base_image_url: baseImageUrl,
-      variations: presetVariations,
-    });
-  }
-
-  /**
-   * Test all services
+   * Test FIBO service
    */
   async testServices(): Promise<{
     fibo: boolean;
-    fal: boolean;
     overall: boolean;
   }> {
     console.log("Testing services...");
 
     const fiboOk = await this.fiboService.testConnection();
-    const falOk = await this.falService.testConnection();
 
     console.log(`FIBO service: ${fiboOk ? "✓" : "✗"}`);
-    console.log(`FAL service: ${falOk ? "✓" : "✗"}`);
 
     return {
       fibo: fiboOk,
-      fal: falOk,
-      overall: fiboOk && falOk,
+      overall: fiboOk,
     };
   }
 
@@ -312,19 +338,10 @@ export class PosterGenerationOrchestrator {
 }
 
 /**
- * Create an orchestrator instance with default services
+ * Create an orchestrator instance with FIBO service
  */
 export function createPosterGenerationOrchestrator(
-  fiboService: FiboService,
-  falService: FalService
+  fiboService: FiboService
 ): PosterGenerationOrchestrator {
-  const layoutEngine = new LayoutEngine();
-  const promptBuilder = new FiboStructuredPromptBuilder();
-
-  return new PosterGenerationOrchestrator(
-    fiboService,
-    falService,
-    layoutEngine,
-    promptBuilder
-  );
+  return new PosterGenerationOrchestrator(fiboService);
 }

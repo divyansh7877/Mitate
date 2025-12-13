@@ -63,11 +63,14 @@ export class FiboStructuredPromptBuilder {
     };
 
     return `
-A clean, modern educational infographic explaining "${input.summary.title}" from research paper arxiv/${input.arxiv_id}.
+A HIGH-RESOLUTION, professional-quality educational infographic explaining "${input.summary.title}" from research paper arxiv/${input.arxiv_id}.
 The design uses a ${layout.type} layout with ${input.summary.key_concepts.length} main concept sections.
 Style is ${levelDescriptor[input.knowledge_level]}.
-The infographic includes clear section headers, explanatory text, and visual representations of key concepts.
-Overall aesthetic is minimalist, educational, and suitable for sharing on social media or academic presentations.
+CRITICAL: This infographic uses OVERLAY TEXT RENDERING - all text elements in text_render array should be treated as vector overlays on top of the background, NOT as diffusion-generated text within the image.
+Text must be crystal clear, sharp, and fully legible with high contrast. Use clean vector-style graphics for visual elements with sharp lines and no blurriness.
+The background provides visual context, while text_render elements overlay crisp, professional typography.
+Overall aesthetic is minimalist, professional, polished, with ample white space around text for maximum readability.
+Print-ready quality suitable for sharing on social media or academic presentations.
     `.trim();
   }
 
@@ -160,13 +163,13 @@ Overall aesthetic is minimalist, educational, and suitable for sharing on social
     };
 
     return {
-      description: `Main header banner section containing the title "${title}" and ${iconDescriptor[level]}. Modern and professional design that immediately communicates the topic.`,
+      description: `Main header banner section containing the title "${title}" in LARGE, BOLD, CRYSTAL-CLEAR typography and ${iconDescriptor[level]}. Ultra-professional design with sharp edges and high contrast that immediately communicates the topic. All text must be perfectly legible and sharp.`,
       location: `top-center, starting at ${section.position.y}`,
       relationship: "Primary visual anchor, introduces the research topic to the viewer",
       relative_size: `${section.height_percentage}% of total vertical space`,
-      shape_and_color: `Rounded rectangle banner with gradient from ${colorScheme.primary} to ${colorScheme.secondary}`,
-      texture: "flat color with subtle gradient, smooth finish",
-      appearance_details: `Clean edges, modern sans-serif typography, small decorative pattern (neural network or research-themed) in background at 10% opacity`,
+      shape_and_color: `Rounded rectangle banner with smooth gradient from ${colorScheme.primary} to ${colorScheme.secondary}, high contrast with white text`,
+      texture: "flat vector-style with subtle gradient, perfectly smooth finish, no artifacts",
+      appearance_details: `Razor-sharp edges, modern high-quality sans-serif typography with excellent readability (minimum 18pt equivalent), small decorative pattern (neural network or research-themed) in background at 10% opacity, professional polish`,
       orientation: "horizontal banner spanning full width",
     };
   }
@@ -196,13 +199,13 @@ Overall aesthetic is minimalist, educational, and suitable for sharing on social
       containerColors[level][index % containerColors[level].length];
 
     return {
-      description: visualDescription,
+      description: visualDescription + " All text must be SHARP, CLEAR, and HIGHLY READABLE with excellent contrast. Use professional typography with minimum 14pt equivalent font sizes.",
       location: `${section.position.y} from top, ${section.position.x} horizontally`,
       relationship: `Concept ${index + 1} of ${section.height_percentage}%, sequentially connected to other concepts`,
       relative_size: `${section.height_percentage}% of vertical space`,
-      shape_and_color: `Rounded container with light background ${bgColor}, accent colors from ${colorScheme.accent}`,
-      texture: "flat illustration style with subtle depth through shadows",
-      appearance_details: `Numbered label '${index + 1}' in a circle at top-left, clear visual hierarchy, ${level === "beginner" ? "simple and friendly" : level === "intermediate" ? "technical and practical" : "dense and scholarly"}`,
+      shape_and_color: `Clean rounded container with light background ${bgColor}, high-contrast accent colors from ${colorScheme.accent}, sharp edges`,
+      texture: "flat vector illustration style with subtle depth through precise shadows, no blur or artifacts",
+      appearance_details: `Large numbered label '${index + 1}' in a circle at top-left with crystal-clear typography, excellent visual hierarchy with sharp text rendering, ${level === "beginner" ? "simple, friendly, and extremely readable" : level === "intermediate" ? "technical, practical, and professionally clear" : "dense, scholarly, but still perfectly legible"}`,
       orientation: "horizontal section with internal layout",
     };
   }
@@ -292,25 +295,25 @@ Show methodology details and technical nuances with annotations.
   ): FiboTextRender[] {
     const textElements: FiboTextRender[] = [];
 
-    // Title
+    // Title - emphasized as OVERLAY text
     textElements.push({
       text: input.summary.title.toUpperCase(),
-      location: "top header banner, centered horizontally, 8% from top edge",
-      size: typography.titleSize,
+      location: "top-center",
+      size: "large within frame",
       color: "#FFFFFF",
-      font: typography.titleFont,
+      font: "bold sans-serif",
       appearance_details:
-        "Bold, all caps, letter-spacing: 0.05em for readability, high contrast",
+        "OVERLAY TEXT LAYER: Large, bold, all caps title with letter-spacing 0.05em. Render as vector/overlay text on top of background, NOT diffusion-generated. High contrast white text on dark background with crisp edges, anti-aliased for smoothness, sharp rendering with no blurriness or pixelation. Professional typography, maximum readability at 72pt equivalent.",
     });
 
     // Subtitle
     textElements.push({
       text: input.summary.one_liner,
-      location: "below title in header, centered, 13% from top edge",
-      size: typography.subtitleSize,
-      color: "rgba(255, 255, 255, 0.95)",
-      font: typography.bodyFont,
-      appearance_details: "Regular weight, sentence case, slightly transparent for hierarchy",
+      location: "top-center, below title",
+      size: "medium",
+      color: "#FFFFFF",
+      font: "sans-serif",
+      appearance_details: "OVERLAY TEXT LAYER: Subtitle text rendered as vector overlay, NOT diffusion-generated. Regular weight, sentence case with sharp rendering and anti-aliased edges. High contrast white text with 95% opacity for hierarchy. Clear, crisp typography at 24pt equivalent, no blurriness.",
     });
 
     // Concept sections
@@ -320,53 +323,54 @@ Show methodology details and technical nuances with annotations.
 
     input.summary.key_concepts.forEach((concept, idx) => {
       if (conceptSections[idx]) {
-        const yPos = parseFloat(conceptSections[idx].position.y) || 0;
-
         // Concept number and name
         textElements.push({
           text: `${idx + 1}. ${concept.name.toUpperCase()}`,
-          location: `section ${idx + 1}, top-left corner with 5% padding, approximately ${yPos + 2}% from top`,
-          size: typography.headingSize,
+          location: `left-aligned in section ${idx + 1}`,
+          size: "large",
           color: typography.headingColor,
-          font: typography.headingFont,
-          appearance_details: "Bold, numbered for sequence, all caps for emphasis",
+          font: "bold sans-serif",
+          appearance_details: "OVERLAY TEXT LAYER: Bold heading text rendered as vector overlay. Numbered for sequence, all caps for emphasis. Render as crisp overlay text with sharp edges and anti-aliasing. High contrast black text on light background at 28pt equivalent. Clear, professional typography with letter-spacing for readability, NO diffusion artifacts.",
         });
 
-        // Concept explanation
-        const explanationFontSize = this.calculateDynamicFontSize(
-          concept.explanation,
-          input.knowledge_level
-        );
+        // Truncate very long explanations to avoid FIBO text generation issues
+        const truncatedExplanation = concept.explanation.length > 150
+          ? concept.explanation.substring(0, 147) + "..."
+          : concept.explanation;
 
         textElements.push({
-          text: concept.explanation,
-          location: `section ${idx + 1}, below header with 5% padding, approximately ${yPos + 5}% from top`,
-          size: explanationFontSize,
+          text: truncatedExplanation,
+          location: `left-aligned in section ${idx + 1}, below heading`,
+          size: "medium",
           color: typography.bodyColor,
-          font: typography.bodyFont,
-          appearance_details: `Line height: 1.6 for readability, max width: 80% of section width, left-aligned, ${this.getExplanationStyle(input.knowledge_level)}`,
+          font: "sans-serif",
+          appearance_details: `OVERLAY TEXT LAYER: Body text rendered as vector overlay with line height 1.6 for readability. Left-aligned, max width 80% of section. Render as sharp overlay text with anti-aliased edges, high contrast gray text on light background at 16pt equivalent. Clear typography with no diffusion artifacts or blurriness. ${this.getExplanationStyle(input.knowledge_level)}`,
         });
       }
     });
 
-    // Key finding
+    // Key finding - truncate if too long
+    const truncatedFinding = input.summary.key_finding.length > 100
+      ? input.summary.key_finding.substring(0, 97) + "..."
+      : input.summary.key_finding;
+
     textElements.push({
-      text: `KEY INSIGHT: ${input.summary.key_finding}`,
-      location: "footer section, centered, 93% from top",
-      size: typography.calloutSize,
+      text: `KEY INSIGHT: ${truncatedFinding}`,
+      location: "bottom-center",
+      size: "large",
       color: "#FFFFFF",
-      font: typography.headingFont,
-      appearance_details: "Bold, high contrast, attention-grabbing, emphasis text",
+      font: "bold sans-serif",
+      appearance_details: "OVERLAY TEXT LAYER: Bold callout text rendered as vector overlay. All caps 'KEY INSIGHT' with emphasis. Ultra-high contrast white text on dark background at 20pt equivalent. Render as crisp overlay with anti-aliased edges, sharp and attention-grabbing. NO diffusion artifacts or blurriness.",
     });
 
     // Citation
     textElements.push({
       text: `Source: arxiv.org/abs/${input.arxiv_id}`,
-      location: "footer section, bottom-right corner, 97% from top",
-      size: typography.captionSize,
-      color: "rgba(255, 255, 255, 0.8)",
-      font: typography.bodyFont,
-      appearance_details: "Small, subtle but readable, professional citation format",
+      location: "bottom-right",
+      size: "small",
+      color: "#FFFFFF",
+      font: "sans-serif",
+      appearance_details: "OVERLAY TEXT LAYER: Small caption text rendered as vector overlay at 12pt equivalent. White text with 80% opacity for subtle appearance. Sharp, clear rendering with anti-aliasing. Professional citation format, perfectly readable despite small size. NO blurriness.",
     });
 
     return textElements;
@@ -417,14 +421,14 @@ Show methodology details and technical nuances with annotations.
     level: KnowledgeLevel
   ): string {
     if (level === "beginner") {
-      return `Clean white background (${colorScheme.background}) with subtle decorative elements like light dots or abstract shapes at 5% opacity. Bright and welcoming.`;
+      return `Clean, crisp white background (${colorScheme.background}) with subtle decorative elements like light dots or abstract shapes at 5% opacity. Bright, welcoming, and PERFECTLY SMOOTH with no artifacts or noise. High-quality flat design.`;
     }
 
     if (level === "intermediate") {
-      return `Professional light gray background (${colorScheme.background}) with subtle grid pattern at 3% opacity. Clean and technical feel.`;
+      return `Professional light gray background (${colorScheme.background}) with subtle grid pattern at 3% opacity. Clean, technical feel with SHARP, PRECISE lines and no blur or distortion. Vector-quality smoothness.`;
     }
 
-    return `Academic off-white background (${colorScheme.background}) with minimal texture. Serious and scholarly appearance, no distractions.`;
+    return `Academic off-white background (${colorScheme.background}) with minimal texture. Serious, scholarly appearance with CLEAN, ARTIFACT-FREE rendering. No distractions, perfectly smooth surface.`;
   }
 
   /**
@@ -474,14 +478,14 @@ Show methodology details and technical nuances with annotations.
   }
 
   /**
-   * Photographic characteristics (not applicable for infographics)
+   * Photographic characteristics (optimized for text overlay rendering)
    */
   private photoCharacteristics(): FiboPhotographicCharacteristics {
     return {
-      depth_of_field: "Not applicable - flat 2D graphic design",
-      focus: "Sharp throughout - all elements equally crisp and clear",
-      camera_angle: "Straight-on, orthographic view, no perspective",
-      lens_focal_length: "Not applicable - 2D illustration",
+      depth_of_field: "Deep focus - all elements sharp from front to back, no blur",
+      focus: "Sharp focus on text elements - overlay text must be crystal clear and perfectly legible with no diffusion blur or artifacts",
+      camera_angle: "Straight-on, orthographic view, no perspective distortion",
+      lens_focal_length: "Standard - no wide-angle or telephoto distortion that affects text readability",
     };
   }
 
@@ -513,11 +517,11 @@ ${input.user_preferences?.background ? `The viewer has background in: ${input.us
   private selectArtisticStyle(level: KnowledgeLevel): string {
     const styles = {
       beginner:
-        "minimalist, modern infographic, flat design, friendly illustration, clean vector art, educational, colorful",
+        "minimalist, modern infographic, flat design, friendly illustration, clean vector art, educational, colorful, SHARP LINES, HIGH RESOLUTION, crystal-clear text, professional quality, print-ready",
       intermediate:
-        "professional infographic, technical illustration, clean design, modern, engineering-style diagrams",
+        "professional infographic, technical illustration, clean design, modern, engineering-style diagrams, SHARP and PRECISE, high-quality vector graphics, perfectly legible text, polished",
       advanced:
-        "academic infographic, scholarly design, precise technical diagrams, mathematical notation, journal-quality, muted colors",
+        "academic infographic, scholarly design, precise technical diagrams, mathematical notation, journal-quality, muted colors, ULTRA-SHARP rendering, publication-ready, professional typography",
     };
 
     return styles[level];
@@ -607,6 +611,147 @@ ${input.user_preferences?.background ? `The viewer has background in: ${input.us
     };
 
     return base[level];
+  }
+
+  /**
+   * Build structured prompt for header section only (modular generation)
+   */
+  buildHeaderSection(
+    input: GenerationInput,
+    layout: LayoutStrategy
+  ): FiboStructuredPrompt {
+    const colorScheme = this.selectColorScheme(input.knowledge_level);
+    const headerSection = layout.sections.find((s) => s.content_type === "header");
+
+    return {
+      short_description: `Header section of educational infographic for "${input.summary.title}". Clean banner design with title and subtitle text as overlay layers. High contrast, professional typography, minimalist style.`,
+      objects: headerSection
+        ? [this.generateHeaderObject(input.summary.title, input.knowledge_level, headerSection, colorScheme)]
+        : [],
+      background_setting: this.generateBackground(colorScheme, input.knowledge_level),
+      lighting: this.generateLighting(input.knowledge_level),
+      aesthetics: this.generateAesthetics(input.knowledge_level, colorScheme),
+      photographic_characteristics: this.photoCharacteristics(),
+      style_medium: "digital illustration, infographic header, professional banner",
+      text_render: [
+        {
+          text: input.summary.title.toUpperCase(),
+          location: "top-center",
+          size: "large within frame",
+          color: "#FFFFFF",
+          font: "bold sans-serif",
+          appearance_details: "OVERLAY TEXT: Large, bold title. Render as crisp vector overlay at 72pt equivalent with high contrast white on dark background. Sharp edges, anti-aliased.",
+        },
+        {
+          text: input.summary.one_liner,
+          location: "center, below title",
+          size: "medium",
+          color: "#FFFFFF",
+          font: "sans-serif",
+          appearance_details: "OVERLAY TEXT: Subtitle at 24pt equivalent. Sharp, clear rendering with white color at 95% opacity.",
+        },
+      ],
+      context: `Header section for ${input.knowledge_level} level infographic. Focus on clear, readable overlay text.`,
+      artistic_style: this.selectArtisticStyle(input.knowledge_level),
+    };
+  }
+
+  /**
+   * Build structured prompt for a single concept section (modular generation)
+   */
+  buildConceptSection(
+    concept: Concept,
+    index: number,
+    level: KnowledgeLevel,
+    layout: LayoutStrategy
+  ): FiboStructuredPrompt {
+    const colorScheme = this.selectColorScheme(level);
+    const typography = this.selectTypography(level);
+    const conceptSections = layout.sections.filter((s) => s.content_type === "concept");
+    const section = conceptSections[index];
+
+    const truncatedExplanation = concept.explanation.length > 150
+      ? concept.explanation.substring(0, 147) + "..."
+      : concept.explanation;
+
+    return {
+      short_description: `Concept section ${index + 1}: "${concept.name}". Educational infographic section with heading and explanation text as overlay layers. Visual representation of concept with clean typography.`,
+      objects: section
+        ? [this.generateConceptObject(concept, index, level, section, colorScheme)]
+        : [],
+      background_setting: this.generateBackground(colorScheme, level),
+      lighting: this.generateLighting(level),
+      aesthetics: this.generateAesthetics(level, colorScheme),
+      photographic_characteristics: this.photoCharacteristics(),
+      style_medium: "digital illustration, infographic concept section, educational diagram",
+      text_render: [
+        {
+          text: `${index + 1}. ${concept.name.toUpperCase()}`,
+          location: "left-aligned at top",
+          size: "large",
+          color: typography.headingColor,
+          font: "bold sans-serif",
+          appearance_details: "OVERLAY TEXT: Bold heading at 28pt equivalent. Sharp, clear black text on light background with high contrast.",
+        },
+        {
+          text: truncatedExplanation,
+          location: "left-aligned, below heading",
+          size: "medium",
+          color: typography.bodyColor,
+          font: "sans-serif",
+          appearance_details: "OVERLAY TEXT: Body text at 16pt equivalent with line height 1.6. Sharp gray text on light background, max width 80%.",
+        },
+      ],
+      context: `Concept section for ${level} level audience. Emphasize clear, readable overlay text with visual diagram support.`,
+      artistic_style: this.selectArtisticStyle(level),
+    };
+  }
+
+  /**
+   * Build structured prompt for footer section only (modular generation)
+   */
+  buildFooterSection(
+    input: GenerationInput,
+    layout: LayoutStrategy
+  ): FiboStructuredPrompt {
+    const colorScheme = this.selectColorScheme(input.knowledge_level);
+    const footerSection = layout.sections.find((s) => s.content_type === "footer");
+
+    const truncatedFinding = input.summary.key_finding.length > 100
+      ? input.summary.key_finding.substring(0, 97) + "..."
+      : input.summary.key_finding;
+
+    return {
+      short_description: `Footer section with key insight and citation. Professional callout banner with overlay text for maximum readability.`,
+      objects: footerSection
+        ? [this.generateFooterObject(input.summary.key_finding, input.knowledge_level, footerSection, colorScheme)]
+        : [],
+      background_setting: this.generateBackground(colorScheme, input.knowledge_level),
+      lighting: this.generateLighting(input.knowledge_level),
+      aesthetics: this.generateAesthetics(input.knowledge_level, colorScheme),
+      photographic_characteristics: this.photoCharacteristics(),
+      style_medium: "digital illustration, infographic footer, professional banner",
+      text_render: [
+        {
+          text: `KEY INSIGHT: ${truncatedFinding}`,
+          location: "center",
+          size: "large",
+          color: "#FFFFFF",
+          font: "bold sans-serif",
+          appearance_details: "OVERLAY TEXT: Bold callout at 20pt equivalent. High contrast white text on dark background with sharp rendering.",
+        },
+        {
+          text: `Source: arxiv.org/abs/${input.arxiv_id}`,
+          location: "bottom-right",
+          size: "small",
+          color: "#FFFFFF",
+          font: "sans-serif",
+          appearance_details: "OVERLAY TEXT: Small citation at 12pt equivalent with 80% opacity. Sharp, clear despite small size.",
+        },
+      ],
+      context: `Footer section for ${input.knowledge_level} level infographic. Focus on clear key insight with professional citation.`,
+      artistic_style: this.selectArtisticStyle(input.knowledge_level),
+    };
   }
 }
 
