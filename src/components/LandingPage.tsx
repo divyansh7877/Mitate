@@ -1,19 +1,19 @@
-import React from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { useApp } from '@/lib/app-context';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Label } from '@/components/ui/label';
+import React from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import * as z from 'zod'
+import { useApp } from '@/lib/app-context'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { Label } from '@/components/ui/label'
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
+} from '@/components/ui/card'
 import {
   Form,
   FormControl,
@@ -21,15 +21,16 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from '@/components/ui/form'; // Note: I need to create the Form component or import it if it exists.
+} from '@/components/ui/form'
+import { ThemeToggle } from '@/components/ThemeToggle'
 
 const formSchema = z.object({
   query: z.string().min(1, 'Please enter a topic or ArXiv link.'),
   knowledgeLevel: z.enum(['beginner', 'intermediate', 'advanced']),
-});
+})
 
 export const LandingPage = () => {
-  const { setStep, setQuery, setKnowledgeLevel } = useApp();
+  const { setStep, setQuery, setKnowledgeLevel } = useApp()
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -37,21 +38,27 @@ export const LandingPage = () => {
       query: '',
       knowledgeLevel: 'beginner',
     },
-  });
+  })
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    setQuery(values.query);
-    setKnowledgeLevel(values.knowledgeLevel);
-    setStep('loading');
+    setQuery(values.query)
+    setKnowledgeLevel(values.knowledgeLevel)
+    setStep('loading')
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-50 p-4">
+    <div className="flex items-center justify-center min-h-screen bg-background p-4">
+      <div className="fixed top-4 right-4 z-50">
+        <ThemeToggle />
+      </div>
       <Card className="w-full max-w-2xl">
         <CardHeader className="text-center">
-          <CardTitle className="text-3xl font-bold">ArXiv Visual Explainer</CardTitle>
+          <CardTitle className="text-3xl font-bold">
+            ArXiv Visual Explainer
+          </CardTitle>
           <CardDescription className="text-lg mt-2">
-            Transform dense research papers into easy-to-understand infographics.
+            Transform dense research papers into easy-to-understand
+            infographics.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -82,52 +89,60 @@ export const LandingPage = () => {
                 name="knowledgeLevel"
                 render={({ field }) => (
                   <FormItem className="space-y-3">
-                    <FormLabel className="text-md font-semibold">Select your knowledge level</FormLabel>
+                    <FormLabel className="text-md font-semibold">
+                      Select your knowledge level
+                    </FormLabel>
                     <FormControl>
                       <RadioGroup
                         onValueChange={field.onChange}
                         defaultValue={field.value}
                         className="grid grid-cols-1 md:grid-cols-3 gap-4"
                       >
-                        <FormItem className="flex items-center space-x-3 space-y-0 rounded-md border p-4 hover:bg-accent cursor-pointer">
+                        <Label
+                          htmlFor="beginner"
+                          className="flex items-center space-x-3 rounded-md border p-4 hover:bg-accent cursor-pointer"
+                        >
                           <FormControl>
-                            <RadioGroupItem value="beginner" />
+                            <RadioGroupItem value="beginner" id="beginner" />
                           </FormControl>
                           <div className="space-y-1">
-                            <FormLabel className="font-normal cursor-pointer">
-                              Beginner (ELI5)
-                            </FormLabel>
+                            <div className="font-normal">Beginner (ELI5)</div>
                             <p className="text-xs text-muted-foreground">
                               Friendly, analogies, no jargon
                             </p>
                           </div>
-                        </FormItem>
-                        <FormItem className="flex items-center space-x-3 space-y-0 rounded-md border p-4 hover:bg-accent cursor-pointer">
+                        </Label>
+                        <Label
+                          htmlFor="intermediate"
+                          className="flex items-center space-x-3 rounded-md border p-4 hover:bg-accent cursor-pointer"
+                        >
                           <FormControl>
-                            <RadioGroupItem value="intermediate" />
+                            <RadioGroupItem
+                              value="intermediate"
+                              id="intermediate"
+                            />
                           </FormControl>
                           <div className="space-y-1">
-                            <FormLabel className="font-normal cursor-pointer">
-                              Intermediate
-                            </FormLabel>
+                            <div className="font-normal">Intermediate</div>
                             <p className="text-xs text-muted-foreground">
                               Professional, some technical terms
                             </p>
                           </div>
-                        </FormItem>
-                        <FormItem className="flex items-center space-x-3 space-y-0 rounded-md border p-4 hover:bg-accent cursor-pointer">
+                        </Label>
+                        <Label
+                          htmlFor="advanced"
+                          className="flex items-center space-x-3 rounded-md border p-4 hover:bg-accent cursor-pointer"
+                        >
                           <FormControl>
-                            <RadioGroupItem value="advanced" />
+                            <RadioGroupItem value="advanced" id="advanced" />
                           </FormControl>
                           <div className="space-y-1">
-                            <FormLabel className="font-normal cursor-pointer">
-                              Advanced
-                            </FormLabel>
+                            <div className="font-normal">Advanced</div>
                             <p className="text-xs text-muted-foreground">
                               Academic, full technical vocabulary
                             </p>
                           </div>
-                        </FormItem>
+                        </Label>
                       </RadioGroup>
                     </FormControl>
                     <FormMessage />
@@ -143,5 +158,5 @@ export const LandingPage = () => {
         </CardContent>
       </Card>
     </div>
-  );
-};
+  )
+}
