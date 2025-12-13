@@ -1,15 +1,19 @@
 /**
- * Local Dev API Server (NO Appwrite, NO DB)
+ * Local Dev API Server (App Platform friendly, Postgres optional)
  *
  * Exposes a minimal API compatible with the frontend:
  * - POST /api/generate { query, knowledge_level } -> { request_id, status, message }
  * - GET  /api/status?requestId=... -> { request_id, status, message, result?, error? }
  *
- * Stores request state in-memory only.
+ * Storage:
+ * - Uses Postgres when DATABASE_URL is set (Managed DB on DO)
+ * - Falls back to in-memory Map otherwise
  *
  * Run:
  *   bun run src/local/devApiServer.ts
  */
+
+import postgres, { type Sql } from "postgres";
 
 import { createFiboService } from "../services/fiboService";
 import { createPosterGenerationOrchestrator } from "../services/posterGenerationOrchestrator";
@@ -45,10 +49,240 @@ type StoredRequest = {
   };
 };
 
-const requests = new Map<string, StoredRequest>();
+type Storage = {
+  type: "memory" | "db";
+  ready: Promise<void>;
+  saveRequest: (req: StoredRequest) => Promise<void>;
+  updateStatus: (reqId: string, status: RequestStatus, error?: string) => Promise<void>;
+  setResult: (reqId: string, result: StoredResult) => Promise<void>;
+  getRequest: (reqId: string) => Promise<StoredRequest | null>;
+};
 
-const PORT = Number(process.env.LOCAL_API_PORT || 8787);
-const HOST = process.env.LOCAL_API_HOST || "127.0.0.1";
+const DATABASE_URL = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+
+const memoryRequests = new Map<string, StoredRequest>();
+
+const memoryStorage: Storage = {
+  type: "memory",
+  ready: Promise.resolve(),
+  async saveRequest(req) {
+    memoryRequests.set(req.request_id, req);
+  },
+  async updateStatus(reqId, status, error) {
+    const existing = memoryRequests.get(reqId);
+    if (!existing) return;
+    existing.status = status;
+    existing.message = statusMessage(status);
+    existing.updated_at = new Date().toISOString();
+    existing.error = error;
+    memoryRequests.set(reqId, existing);
+  },
+  async setResult(reqId, result) {
+    const existing = memoryRequests.get(reqId);
+    if (!existing) return;
+    existing.status = "complete";
+    existing.message = statusMessage("complete");
+    existing.updated_at = new Date().toISOString();
+    existing.error = undefined;
+    existing.result = result;
+    memoryRequests.set(reqId, existing);
+  },
+  async getRequest(reqId) {
+    return memoryRequests.get(reqId) || null;
+  },
+};
+
+type DbRow = {
+  request_id: string;
+  status: string;
+  message: string;
+  created_at: Date | string;
+  updated_at: Date | string;
+  error: string | null;
+  query: string;
+  knowledge_level: string;
+  paper_title: string | null;
+  paper_url: string | null;
+  image_url: string | null;
+  summary: any | null;
+};
+
+function mapRowToStored(row: DbRow): StoredRequest {
+  return {
+    request_id: row.request_id,
+    status: row.status as RequestStatus,
+    message: row.message,
+    created_at:
+      row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
+    updated_at:
+      row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
+    error: row.error || undefined,
+    result:
+      row.status === "complete" && row.paper_title && row.paper_url && row.image_url && row.summary
+        ? {
+            paper_title: row.paper_title,
+            paper_url: row.paper_url,
+            image_url: row.image_url,
+            summary: row.summary as Summary,
+          }
+        : undefined,
+    input: {
+      query: row.query,
+      knowledge_level: row.knowledge_level as KnowledgeLevel,
+    },
+  };
+}
+
+async function ensureDbSchema(sql: Sql) {
+  await sql`
+    CREATE TABLE IF NOT EXISTS generation_requests (
+      request_id TEXT PRIMARY KEY,
+      status TEXT NOT NULL,
+      message TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      error TEXT,
+      query TEXT NOT NULL,
+      knowledge_level TEXT NOT NULL,
+      paper_title TEXT,
+      paper_url TEXT,
+      image_url TEXT,
+      summary JSONB
+    )
+  `;
+
+  await sql`
+    CREATE INDEX IF NOT EXISTS generation_requests_status_idx
+    ON generation_requests(status)
+  `;
+}
+
+function createDbStorage(url: string): Storage {
+  const sql = postgres(url, {
+    ssl: "require",
+    max: 1,
+    idle_timeout: 20,
+  });
+
+  const ready = ensureDbSchema(sql);
+
+  return {
+    type: "db",
+    ready,
+    async saveRequest(req) {
+      await ready;
+      await sql`
+        INSERT INTO generation_requests (
+          request_id, status, message, created_at, updated_at, error, query, knowledge_level
+        ) VALUES (
+          ${req.request_id},
+          ${req.status},
+          ${req.message},
+          ${req.created_at},
+          ${req.updated_at},
+          ${req.error ?? null},
+          ${req.input.query},
+          ${req.input.knowledge_level}
+        )
+        ON CONFLICT (request_id) DO UPDATE
+        SET
+          status = EXCLUDED.status,
+          message = EXCLUDED.message,
+          updated_at = EXCLUDED.updated_at,
+          error = EXCLUDED.error,
+          query = EXCLUDED.query,
+          knowledge_level = EXCLUDED.knowledge_level
+      `;
+    },
+    async updateStatus(reqId, status, error) {
+      await ready;
+      await sql`
+        UPDATE generation_requests
+        SET
+          status = ${status},
+          message = ${statusMessage(status)},
+          updated_at = NOW(),
+          error = ${error ?? null}
+        WHERE request_id = ${reqId}
+      `;
+    },
+    async setResult(reqId, result) {
+      await ready;
+      await sql`
+        UPDATE generation_requests
+        SET
+          status = 'complete',
+          message = ${statusMessage("complete")},
+          updated_at = NOW(),
+          error = NULL,
+          paper_title = ${result.paper_title},
+          paper_url = ${result.paper_url},
+          image_url = ${result.image_url},
+          summary = ${sql.json(result.summary)}
+        WHERE request_id = ${reqId}
+      `;
+    },
+    async getRequest(reqId) {
+      await ready;
+      const rows = await sql<DbRow[]>`
+        SELECT
+          request_id,
+          status,
+          message,
+          created_at,
+          updated_at,
+          error,
+          query,
+          knowledge_level,
+          paper_title,
+          paper_url,
+          image_url,
+          summary
+        FROM generation_requests
+        WHERE request_id = ${reqId}
+        LIMIT 1
+      `;
+
+      if (!rows || rows.length === 0) return null;
+      return mapRowToStored(rows[0]);
+    },
+  };
+}
+
+let storage: Storage = memoryStorage;
+
+if (DATABASE_URL) {
+  const dbStorage = createDbStorage(DATABASE_URL);
+  storage = dbStorage;
+
+  dbStorage.ready
+    .then(() => {
+      console.log("[storage] Using Postgres for request persistence");
+    })
+    .catch((err) => {
+      console.error("[storage] Postgres unavailable, falling back to memory:", err);
+      storage = memoryStorage;
+    });
+}
+
+async function ensureStorageReady(): Promise<Storage> {
+  try {
+    await storage.ready;
+    return storage;
+  } catch (err) {
+    console.warn("[storage] Storage not ready, switching to in-memory:", err);
+    storage = memoryStorage;
+    return storage;
+  }
+}
+
+// DigitalOcean App Platform provides PORT. Prefer it if present.
+const PORT = Number(process.env.PORT || process.env.LOCAL_API_PORT || 8787);
+// For local dev we default to 127.0.0.1, but for hosting we typically need 0.0.0.0.
+const HOST = process.env.LOCAL_API_HOST || (process.env.PORT ? "0.0.0.0" : "127.0.0.1");
+
+// CORS: by default allow all in local dev, but you can lock it down in hosting
+const CORS_ORIGIN = process.env.CORS_ORIGIN || "*";
 
 const DO_ENDPOINT = "https://inference.do-ai.run/v1/chat/completions";
 const DO_API_KEY =
@@ -66,7 +300,7 @@ function json(res: any, body: any, status = 200) {
     headers: {
       "Content-Type": "application/json",
       // very permissive for local dev
-      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Origin": CORS_ORIGIN,
       "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type",
     },
@@ -85,14 +319,9 @@ function statusMessage(status: RequestStatus) {
   return messages[status];
 }
 
-function setStatus(reqId: string, status: RequestStatus, error?: string) {
-  const existing = requests.get(reqId);
-  if (!existing) return;
-  existing.status = status;
-  existing.message = statusMessage(status);
-  existing.updated_at = new Date().toISOString();
-  if (error) existing.error = error;
-  requests.set(reqId, existing);
+async function updateStatus(reqId: string, status: RequestStatus, error?: string) {
+  const store = await ensureStorageReady();
+  await store.updateStatus(reqId, status, error);
 }
 
 function extractArxivId(url: string): string | null {
@@ -332,11 +561,12 @@ async function generatePoster(
 }
 
 async function processRequest(reqId: string) {
-  const req = requests.get(reqId);
+  const store = await ensureStorageReady();
+  const req = await store.getRequest(reqId);
   if (!req) return;
 
   try {
-    setStatus(reqId, "finding_paper");
+    await store.updateStatus(reqId, "finding_paper");
 
     const { query, knowledge_level } = req.input;
 
@@ -345,30 +575,24 @@ async function processRequest(reqId: string) {
       ? await fetchArxivById(arxivId)
       : await searchArxivByTopic(query);
 
-    setStatus(reqId, "summarizing");
+    await store.updateStatus(reqId, "summarizing");
     const summary = await summarizeWithDigitalOcean(
       paper.title,
       paper.abstract,
       knowledge_level
     );
 
-    setStatus(reqId, "generating_image");
+    await store.updateStatus(reqId, "generating_image");
     const poster = await generatePoster(paper.arxiv_id, summary, knowledge_level);
 
-    const updated = requests.get(reqId);
-    if (!updated) return;
-    updated.status = "complete";
-    updated.message = statusMessage("complete");
-    updated.updated_at = new Date().toISOString();
-    updated.result = {
+    await store.setResult(reqId, {
       paper_title: paper.title,
       paper_url: paper.arxiv_url,
       image_url: poster.image_url,
       summary,
-    };
-    requests.set(reqId, updated);
+    });
   } catch (e: any) {
-    setStatus(reqId, "failed", e?.message || "Unknown error");
+    await store.updateStatus(reqId, "failed", e?.message || "Unknown error");
   }
 }
 
@@ -387,6 +611,7 @@ Bun.serve({
     }
 
     if (request.method === "POST" && url.pathname === "/api/generate") {
+      const store = await ensureStorageReady();
       let payload: any = {};
       try {
         payload = await request.json();
@@ -413,7 +638,7 @@ Bun.serve({
         input: { query, knowledge_level },
       };
 
-      requests.set(request_id, stored);
+      await store.saveRequest(stored);
       // Fire and forget
       processRequest(request_id);
 
@@ -425,10 +650,11 @@ Bun.serve({
     }
 
     if (request.method === "GET" && url.pathname === "/api/status") {
+      const store = await ensureStorageReady();
       const requestId = url.searchParams.get("requestId");
       if (!requestId) return json(null, { error: "Missing requestId" }, 400);
 
-      const stored = requests.get(requestId);
+      const stored = await store.getRequest(requestId);
       if (!stored) return json(null, { error: "Request not found", request_id: requestId }, 404);
 
       const base: any = {
@@ -448,7 +674,9 @@ Bun.serve({
 });
 
 console.log(
-  `[local-dev-api] listening on http://${HOST}:${PORT} (DO=${DO_API_KEY ? "on" : "off"}, FIBO=${process.env.FIBO_API_KEY || process.env.BRIA_API_KEY ? "on" : "off"})`
+  `[local-dev-api] listening on http://${HOST}:${PORT} (storage=${storage.type}, DO=${
+    DO_API_KEY ? "on" : "off"
+  }, FIBO=${process.env.FIBO_API_KEY || process.env.BRIA_API_KEY ? "on" : "off"})`
 );
 
 

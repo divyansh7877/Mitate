@@ -12,6 +12,7 @@
     "format": "prettier",
     "check": "prettier --write . && eslint --fix",
     "setup:appwrite": "bun run scripts/setup-appwrite.ts",
+    "setup:db": "bun run scripts/setup-db.ts",
     "test:offline": "bun run src/examples/testWithoutAPIs.ts"
   },
   "dependencies": {
@@ -37,6 +38,7 @@
     "lucide-react": "^0.561.0",
     "nitro": "latest",
     "node-appwrite": "^21.0.0",
+    "postgres": "^3.4.7",
     "radix-ui": "^1.4.3",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
