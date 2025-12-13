@@ -1,13 +1,26 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react'
+import React, { createContext, useContext, useState } from 'react'
+import type { ReactNode } from 'react';
 
 export type KnowledgeLevel = 'beginner' | 'intermediate' | 'advanced'
 export type AppStep = 'landing' | 'loading' | 'result'
+
+export interface SummaryData {
+  title: string
+  one_liner: string
+  key_concepts: Array<{
+    name: string
+    explanation: string
+    visual_metaphor: string
+  }>
+  key_finding: string
+  real_world_impact: string
+}
 
 export interface InfographicResult {
   paperTitle: string
   paperUrl: string
   imageUrl: string
-  summary: string
+  summary: SummaryData
 }
 
 interface AppContextType {

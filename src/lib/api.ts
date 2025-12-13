@@ -1,5 +1,5 @@
 import { functions } from './appwrite'
-import { GenerateRequest, GenerationStatus, InfographicResult } from './types'
+import type { GenerateRequest, GenerationStatus, InfographicResult } from './types'
 
 // Function IDs from environment variables
 const GENERATE_FUNCTION_ID =
@@ -159,8 +159,7 @@ function getMockResult(request: GenerateRequest): InfographicResult {
   return {
     paper_title: 'Attention Is All You Need',
     paper_url: 'https://arxiv.org/abs/1706.03762',
-    image_url:
-      'https://placehold.co/1024x1024/png?text=Transformer+Architecture',
+    image_url: '/placehold.png',
     summary: {
       title: 'Attention Is All You Need',
       one_liner:

@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react'
-import { useApp, InfographicResult } from '@/lib/app-context'
+import { CheckCircle2, Circle, Loader2 } from 'lucide-react'
+import type { InfographicResult } from '@/lib/app-context';
+import { useApp } from '@/lib/app-context'
 import { api } from '@/lib/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { CheckCircle2, Loader2, Circle } from 'lucide-react'
 
 const steps = [
   { id: 1, label: 'Finding relevant papers...' },
@@ -41,7 +42,7 @@ export const LoadingState = () => {
             paperTitle: status.result.paper_title,
             paperUrl: status.result.paper_url,
             imageUrl: status.result.image_url,
-            summary: JSON.stringify(status.result.summary, null, 2),
+            summary: status.result.summary,
           }
 
           setResult(result)
