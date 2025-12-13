@@ -10,7 +10,7 @@
 This guide walks you through deploying the ArXiv Visual Explainer system with:
 - **Frontend:** React + Vite + TanStack Router
 - **Backend:** Appwrite Functions (2 functions)
-- **AI Services:** Gradient AI (summarization), FIBO (image generation), FAL (variations)
+- **AI Services:** DigitalOcean Gradient AI Platform (summarization), FIBO (image generation), FAL (variations)
 - **Database:** Appwrite Cloud
 
 ---
@@ -20,9 +20,9 @@ This guide walks you through deploying the ArXiv Visual Explainer system with:
 Before starting, ensure you have:
 
 - [ ] Appwrite project created at https://cloud.appwrite.io
-- [ ] Gradient AI account and API credentials
-- [ ] FIBO API key from Bria AI
-- [ ] FAL API key from fal.ai
+- [ ] DigitalOcean account with Gradient AI Platform access
+- [ ] FIBO API key from Bria AI (optional - currently using placeholder)
+- [ ] FAL API key from fal.ai (optional - currently using placeholder)
 - [ ] Node.js 18+ and npm/bun installed locally
 
 ---
@@ -110,8 +110,8 @@ In Appwrite Console, for **BOTH functions**, set these environment variables:
 ```
 APPWRITE_FUNCTION_PROJECT_ID=<auto-provided>
 APPWRITE_API_KEY=<create in Console>
-GRADIENT_ACCESS_TOKEN=<your_gradient_token>
-GRADIENT_WORKSPACE_ID=<your_gradient_workspace>
+DO_GRADIENT_API_KEY=<your_digitalocean_gradient_api_key>
+DO_GRADIENT_MODEL=meta-llama/llama-3-70b-instruct
 FIBO_API_KEY=<your_fibo_key>
 FAL_KEY=<your_fal_key>
 DATABASE_ID=mitate-db
@@ -122,6 +122,8 @@ BUCKET_ID=poster-images
 ```
 WORKER_FUNCTION_ID=<ID of process-generation function>
 ```
+
+> **Note:** See [DIGITALOCEAN_GRADIENT_SETUP.md](./DIGITALOCEAN_GRADIENT_SETUP.md) for details on obtaining DigitalOcean Gradient API keys.
 
 ### 2.7 Create Appwrite API Key
 
@@ -280,12 +282,13 @@ In Appwrite Console:
 - Check that `WORKER_FUNCTION_ID` is set in generate function
 - Verify database permissions
 
-### Issue: "Gradient AI error"
+### Issue: "DigitalOcean Gradient AI error"
 
 **Solution:**
-- Verify `GRADIENT_ACCESS_TOKEN` and `GRADIENT_WORKSPACE_ID`
-- Check Gradient AI account has sufficient credits
-- Review Gradient AI API documentation
+- Verify `DO_GRADIENT_API_KEY` is set correctly
+- Check DigitalOcean account has sufficient credits
+- Verify endpoint is reachable: `https://inference.do-ai.run/v1/chat/completions`
+- Review [DIGITALOCEAN_GRADIENT_SETUP.md](./DIGITALOCEAN_GRADIENT_SETUP.md) for troubleshooting
 
 ### Issue: "FIBO generation failed"
 
@@ -308,17 +311,18 @@ In Appwrite Console:
 
 ### Where to Get API Keys:
 
-1. **Gradient AI**
-   - Sign up at https://gradient.ai
-   - Go to Dashboard → API Keys
-   - Copy Access Token and Workspace ID
+1. **DigitalOcean Gradient AI Platform**
+   - Sign up at https://www.digitalocean.com
+   - Navigate to: Cloud → Gradient → API Keys
+   - Create new API key and copy it
+   - See [DIGITALOCEAN_GRADIENT_SETUP.md](./DIGITALOCEAN_GRADIENT_SETUP.md) for detailed instructions
 
-2. **FIBO (Bria AI)**
+2. **FIBO (Bria AI)** *(Optional - currently using placeholder)*
    - Sign up at https://bria.ai
    - Request API access
    - Get API key from dashboard
 
-3. **FAL.AI**
+3. **FAL.AI** *(Optional - currently using placeholder)*
    - Sign up at https://fal.ai
    - Go to Settings → API Keys
    - Create new key
@@ -354,12 +358,13 @@ Recommended tools:
 ## Cost Estimation
 
 Per generation:
-- **Gradient AI:** ~$0.001-0.01 (depending on model and tokens)
-- **FIBO API:** ~$0.05-0.10 per image
-- **FAL API:** ~$0.01 per variation
+- **DigitalOcean Gradient AI:** ~$0.001-0.01 (depending on model and tokens)
+- **FIBO API:** ~$0.05-0.10 per image *(not yet integrated)*
+- **FAL API:** ~$0.01 per variation *(not yet integrated)*
 - **Appwrite:** Free tier covers ~1000 executions/month
 
-**Total cost per generation:** ~$0.06-0.12
+**Current cost per generation:** ~$0.001-0.01 (AI summarization only)  
+**Future cost with FIBO:** ~$0.06-0.12
 
 ---
 
@@ -432,9 +437,12 @@ Per generation:
 ## Support & Resources
 
 - **Appwrite Docs:** https://appwrite.io/docs
-- **Gradient AI Docs:** https://gradient.ai/docs
+- **DigitalOcean Gradient Docs:** https://www.digitalocean.com/products/gradient/platform
 - **FIBO API Docs:** https://bria.ai/docs
 - **FAL API Docs:** https://fal.ai/docs
+- **Project Documentation:**
+  - [DIGITALOCEAN_GRADIENT_SETUP.md](./DIGITALOCEAN_GRADIENT_SETUP.md) - Setup guide
+  - [GRADIENT_AI_INTEGRATION.md](./GRADIENT_AI_INTEGRATION.md) - Technical details
 - **GitHub Issues:** [Your repo]/issues
 
 ---
@@ -467,4 +475,13 @@ Per generation:
 
 **Last Tested:** 2025-12-13
 
-**Version:** 1.0.0
+**Version:** 1.1.0
+
+---
+
+## Changes in v1.1.0
+
+- ✅ Migrated from gradient.ai to DigitalOcean Gradient AI Platform
+- ✅ Updated API integration to use REST endpoint instead of SDK
+- ✅ Changed environment variables to `DO_GRADIENT_API_KEY` and `DO_GRADIENT_MODEL`
+- ✅ Updated all documentation references
