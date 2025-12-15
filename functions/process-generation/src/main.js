@@ -19,6 +19,8 @@ const {
   FAL_KEY,
   DATABASE_ID = 'mitate-db',
   BUCKET_ID = 'poster-images',
+  // Generation mode: "infographic" (default) or "simple_visuals"
+  GENERATION_MODE = 'infographic',
 } = process.env;
 
 const EFFECTIVE_DO_API_KEY =
@@ -151,46 +153,88 @@ export default async ({ req, res, log, error: logError }) => {
     log(`Summary generated with ${summary.key_concepts.length} concepts`);
 
     // ============================================================
-    // Step 4: Agent 3 - Image Generation (Simplified for MVP)
+    // Step 4: Agent 3 - Image Generation
     // ============================================================
     await updateStatus('generating_image');
 
-    // For MVP, we'll use a placeholder or simple FIBO call
-    // In production, this would use the full PosterGenerationOrchestrator
     let imageUrl;
+    let conceptImages = null; // For simple_visuals mode
     let fiboMetadata = {
       fibo_prompt: null,
       fibo_seed: Math.floor(Math.random() * 1000000),
     };
 
     log(`FIBO_API_KEY check: ${EFFECTIVE_FIBO_API_KEY ? 'SET' : 'NOT SET'}`);
+    log(`GENERATION_MODE: ${GENERATION_MODE}`);
 
     if (EFFECTIVE_FIBO_API_KEY) {
       log('FIBO_API_KEY is set, attempting to generate image with FIBO...');
-      try {
-        log('Calling generateWithFibo function...');
-        const result = await generateWithFibo(
-          summary,
-          knowledge_level,
-          log,
-          logError
-        );
-        log(`FIBO result received: ${JSON.stringify(result)}`);
-        imageUrl = result.imageUrl;
-        fiboMetadata = result.metadata;
-        log(`FIBO generation successful! Image URL: ${imageUrl}`);
-      } catch (fiboError) {
-        logError(`FIBO generation failed with error: ${fiboError.message}`);
-        logError(`FIBO error stack: ${fiboError.stack}`);
-        log(`Using placeholder due to FIBO error`);
-        imageUrl = `https://placehold.co/1024x1024/059669/white?text=${encodeURIComponent(summary.title)}`;
+
+      if (GENERATION_MODE === 'simple_visuals') {
+        // New flow: Generate one simple image per key concept
+        log('Using simple_visuals mode - generating one image per concept...');
+        try {
+          conceptImages = await generateSimpleVisuals(
+            summary,
+            knowledge_level,
+            log,
+            logError
+          );
+          log(`Generated ${conceptImages.length} concept images`);
+          // Set primary image to first concept image for backward compatibility
+          imageUrl =
+            conceptImages[0]?.image_url ||
+            `https://placehold.co/1024x1024/059669/white?text=${encodeURIComponent(summary.title)}`;
+          fiboMetadata.generation_mode = 'simple_visuals';
+        } catch (fiboError) {
+          logError(`Simple visuals generation failed: ${fiboError.message}`);
+          logError(`Error stack: ${fiboError.stack}`);
+          log('Falling back to placeholder images');
+          imageUrl = `https://placehold.co/1024x1024/059669/white?text=${encodeURIComponent(summary.title)}`;
+          // Create placeholder concept images
+          conceptImages = summary.key_concepts.map((concept, idx) => ({
+            concept_name: concept.name,
+            image_url: `https://placehold.co/1024x1024/059669/white?text=${encodeURIComponent(concept.name)}`,
+          }));
+        }
+      } else {
+        // Original flow: Single complex infographic
+        try {
+          log('Using infographic mode - generating single complex image...');
+          const result = await generateWithFibo(
+            summary,
+            knowledge_level,
+            log,
+            logError
+          );
+          log(`FIBO result received: ${JSON.stringify(result)}`);
+          imageUrl = result.imageUrl;
+          fiboMetadata = result.metadata;
+          log(`FIBO generation successful! Image URL: ${imageUrl}`);
+        } catch (fiboError) {
+          logError(`FIBO generation failed with error: ${fiboError.message}`);
+          logError(`FIBO error stack: ${fiboError.stack}`);
+          log(`Using placeholder due to FIBO error`);
+          imageUrl = `https://placehold.co/1024x1024/059669/white?text=${encodeURIComponent(summary.title)}`;
+        }
       }
     } else {
       log('FIBO_API_KEY not set, using placeholder image');
       imageUrl = `https://placehold.co/1024x1024/059669/white?text=${encodeURIComponent(summary.title)}`;
+
+      if (GENERATION_MODE === 'simple_visuals') {
+        // Create placeholder concept images
+        conceptImages = summary.key_concepts.map((concept) => ({
+          concept_name: concept.name,
+          image_url: `https://placehold.co/1024x1024/059669/white?text=${encodeURIComponent(concept.name)}`,
+        }));
+      }
     }
 
     log(`Final image URL: ${imageUrl}`);
+    if (conceptImages) {
+      log(`Concept images: ${JSON.stringify(conceptImages)}`);
+    }
 
     // ============================================================
     // Step 5: Store Result
@@ -221,6 +265,8 @@ export default async ({ req, res, log, error: logError }) => {
         ? JSON.stringify(fiboMetadata.fibo_prompt)
         : '',
       fibo_seed: fiboMetadata.fibo_seed || Math.floor(Math.random() * 1000000),
+      // Include concept_images for simple_visuals mode
+      concept_images: conceptImages ? JSON.stringify(conceptImages) : null,
     };
 
     try {
@@ -948,5 +994,178 @@ function buildSimpleStructuredPrompt(summary, knowledgeLevel) {
     style_medium: 'digital illustration',
     context: `This is an educational infographic designed for ${knowledgeLevel === 'beginner' ? 'general audience with no technical background' : knowledgeLevel === 'intermediate' ? 'engineers and practitioners' : 'researchers and academics'}, intended for social media sharing, presentations, and teaching materials.`,
     artistic_style: `${knowledgeLevel === 'beginner' ? 'minimalist, modern infographic, flat design, friendly illustration, colorful' : knowledgeLevel === 'intermediate' ? 'professional infographic, technical illustration, clean design, modern' : 'academic infographic, scholarly design, precise diagrams, journal-quality, muted colors'}, SHARP LINES, HIGH RESOLUTION, crystal-clear text, professional quality, print-ready`,
+  };
+}
+
+// ============================================================
+// Simple Visuals Mode Functions
+// ============================================================
+
+/**
+ * Generate simple visual images for each key concept (no text burned in)
+ */
+async function generateSimpleVisuals(summary, knowledgeLevel, log, logError) {
+  const FIBO_API_KEY = process.env.FIBO_API_KEY || process.env.BRIA_API_KEY;
+  const FIBO_BASE_URL =
+    process.env.FIBO_API_URL || 'https://engine.prod.bria-api.com/v2';
+
+  if (!FIBO_API_KEY) {
+    throw new Error('FIBO_API_KEY not configured');
+  }
+
+  const conceptImages = [];
+  const concepts = summary.key_concepts || [];
+
+  log(`Generating ${concepts.length} simple visual images...`);
+
+  for (let i = 0; i < concepts.length; i++) {
+    const concept = concepts[i];
+    log(
+      `Generating image ${i + 1}/${concepts.length} for concept: ${concept.name}`
+    );
+
+    try {
+      const structuredPrompt = buildSimpleVisualPrompt(
+        concept,
+        knowledgeLevel,
+        i
+      );
+      const seed = Math.floor(Math.random() * 1000000);
+
+      log(`Calling FIBO for concept "${concept.name}" with seed: ${seed}`);
+
+      const response = await axios.post(
+        `${FIBO_BASE_URL}/image/generate`,
+        {
+          structured_prompt: JSON.stringify(structuredPrompt),
+          seed: seed,
+          image_size: { width: 1024, height: 1024 },
+          output_format: 'png',
+          sync: true,
+          steps_num: 50,
+          enhance_image: true,
+          guidance_scale: 5,
+          aspect_ratio: '1:1',
+          fast: false,
+          negative_prompt:
+            'text, words, letters, numbers, labels, captions, titles, subtitles, watermark, signature, logo, busy background, complex details, cluttered, photorealistic, blurry, low quality, amateur',
+        },
+        {
+          headers: {
+            api_token: FIBO_API_KEY,
+            'Content-Type': 'application/json',
+          },
+          timeout: 120000, // 2 minute timeout per image
+        }
+      );
+
+      let imageUrl;
+
+      // Handle synchronous success
+      if (response.data.result && response.data.result.image_url) {
+        imageUrl = response.data.result.image_url;
+        log(`Image ${i + 1} generated: ${imageUrl}`);
+      } else {
+        // Handle async response (needs polling)
+        const status = response.data.status?.toUpperCase();
+        if (
+          status === 'PENDING' ||
+          status === 'PROCESSING' ||
+          status === 'IN_PROGRESS'
+        ) {
+          log(`Image ${i + 1} started async, polling for completion...`);
+          const requestId = response.data.request_id;
+          const statusUrl = response.data.status_url;
+          imageUrl = await pollFiboCompletion(
+            requestId,
+            statusUrl,
+            FIBO_API_KEY,
+            FIBO_BASE_URL,
+            log
+          );
+        } else {
+          throw new Error(
+            `Unexpected FIBO response: ${JSON.stringify(response.data)}`
+          );
+        }
+      }
+
+      conceptImages.push({
+        concept_name: concept.name,
+        image_url: imageUrl,
+      });
+    } catch (error) {
+      logError(
+        `Failed to generate image for concept "${concept.name}": ${error.message}`
+      );
+      // Use placeholder for failed concepts
+      conceptImages.push({
+        concept_name: concept.name,
+        image_url: `https://placehold.co/1024x1024/059669/white?text=${encodeURIComponent(concept.name)}`,
+      });
+    }
+  }
+
+  log(`Generated ${conceptImages.length} concept images`);
+  return conceptImages;
+}
+
+/**
+ * Build a simple visual prompt for a single concept (no text)
+ */
+function buildSimpleVisualPrompt(concept, knowledgeLevel, index) {
+  const colorScheme = selectColorScheme(knowledgeLevel);
+
+  const levelStyle = {
+    beginner: 'friendly, colorful, playful, approachable',
+    intermediate: 'professional, clean, modern, technical',
+    advanced: 'scholarly, precise, detailed, academic',
+  };
+
+  return {
+    short_description: `A clean, simple illustration visualizing the concept: "${concept.visual_metaphor}". This represents "${concept.name}" - a key concept from a research paper. Style: Modern, minimalist digital illustration. NO TEXT, NO LABELS, NO WORDS anywhere in the image. The image should be immediately understandable as a visual metaphor. Clean, iconic representation.`,
+
+    background_setting: `Clean, simple gradient or solid color background in soft ${knowledgeLevel === 'beginner' ? 'warm pastel tones' : knowledgeLevel === 'intermediate' ? 'cool professional tones' : 'neutral academic tones'}. Minimal, uncluttered, complements the main visual element.`,
+
+    objects: [
+      {
+        description: `Visual representation of: ${concept.visual_metaphor}. This metaphor represents the concept "${concept.name}". Create a clear, iconic illustration that captures this idea visually.`,
+        location: 'centered in frame, slightly above center',
+        relationship: 'Main focal point of the image',
+        relative_size: 'large, occupying 60-70% of the frame',
+        shape_and_color: `Clean illustration style with ${colorScheme.primary} as dominant color and ${colorScheme.accent} as accent. Bold, vibrant colors.`,
+        texture:
+          'flat vector illustration style, clean edges, no gradients on main object',
+        appearance_details: `Simple, iconic representation with clean lines. NO TEXT OR LABELS. ${levelStyle[knowledgeLevel]} aesthetic. High contrast, visually striking.`,
+        orientation: 'facing viewer, balanced composition',
+      },
+    ],
+
+    text_render: [], // CRITICAL: Empty array - no text!
+
+    lighting: {
+      conditions: 'soft, even studio lighting',
+      direction: 'diffused from above and front',
+      shadows: 'minimal, soft shadows for depth only',
+    },
+
+    aesthetics: {
+      composition: 'centered, balanced, simple, plenty of negative space',
+      color_scheme: `${colorScheme.primary} dominant with ${colorScheme.secondary} accents on ${colorScheme.background} background`,
+      mood_atmosphere: `clear, educational, ${levelStyle[knowledgeLevel]}`,
+      preference_score: 'very high',
+      aesthetic_score: 'very high',
+    },
+
+    photographic_characteristics: {
+      depth_of_field: 'deep, everything in sharp focus',
+      focus: 'sharp throughout entire image',
+      camera_angle: 'straight-on, eye-level',
+      lens_focal_length: 'standard lens',
+    },
+
+    style_medium: 'clean digital illustration, vector art style, flat design',
+    context: `Educational visualization for ${knowledgeLevel} audience. This is one of several images explaining a research paper concept.`,
+    artistic_style: `modern minimalist illustration, ${levelStyle[knowledgeLevel]}, clean lines, bold colors, NO TEXT, icon-style, infographic element`,
   };
 }

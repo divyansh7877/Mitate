@@ -241,6 +241,15 @@
           "max": 999999999,
           "default": null,
           "encrypt": false
+        },
+        {
+          "key": "concept_images",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "size": 16384,
+          "default": null,
+          "encrypt": false
         }
       ],
       "indexes": []
@@ -442,7 +451,8 @@
         "FIBO_API_KEY": "4ef8a80ab65341c3899c1ec07d48e53d",
         "FAL_KEY": "",
         "DO_GRADIENT_API_KEY": "sk-do-gytqgD88XsEcGkdCBjk1yiEN8GPL3n0Z1NU0WCA-rhi6_tn6C8YCSFw1SP",
-        "DO_GRADIENT_MODEL": "llama3.3-70b-instruct"
+        "DO_GRADIENT_MODEL": "llama3.3-70b-instruct",
+        "GENERATION_MODE": "infographic"
       }
     },
     {

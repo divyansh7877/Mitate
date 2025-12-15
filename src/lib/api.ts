@@ -166,6 +166,30 @@ async function simulateProcessing(requestId: string, request: GenerateRequest) {
 }
 
 function getMockResult(request: GenerateRequest): InfographicResult {
+  const keyConcepts = [
+    {
+      name: 'Self-Attention',
+      explanation:
+        'Instead of reading word by word, the model looks at all words at once.',
+      visual_metaphor:
+        'A spotlight that can shine on multiple actors on stage simultaneously',
+    },
+    {
+      name: 'Transformer Architecture',
+      explanation:
+        'The overall design that stacks attention layers to build understanding',
+      visual_metaphor:
+        'A tower where each floor refines the understanding from below',
+    },
+    {
+      name: 'Parallelization',
+      explanation:
+        'Processing everything at once instead of one step at a time',
+      visual_metaphor:
+        'A team of workers all building different parts simultaneously',
+    },
+  ]
+
   return {
     paper_title: 'Attention Is All You Need',
     paper_url: 'https://arxiv.org/abs/1706.03762',
@@ -174,33 +198,16 @@ function getMockResult(request: GenerateRequest): InfographicResult {
       title: 'Attention Is All You Need',
       one_liner:
         'A new way to help computers understand language by focusing on what matters most',
-      key_concepts: [
-        {
-          name: 'Self-Attention',
-          explanation:
-            'Instead of reading word by word, the model looks at all words at once.',
-          visual_metaphor:
-            'A spotlight that can shine on multiple actors on stage simultaneously',
-        },
-        {
-          name: 'Transformer Architecture',
-          explanation:
-            'The overall design that stacks attention layers to build understanding',
-          visual_metaphor:
-            'A tower where each floor refines the understanding from below',
-        },
-        {
-          name: 'Parallelization',
-          explanation:
-            'Processing everything at once instead of one step at a time',
-          visual_metaphor:
-            'A team of workers all building different parts simultaneously',
-        },
-      ],
+      key_concepts: keyConcepts,
       key_finding:
         'Transformers outperform previous models while being faster to train',
       real_world_impact:
         'This architecture powers ChatGPT, Google Search, and most modern AI',
     },
+    // Mock concept_images for simple_visuals mode testing
+    concept_images: keyConcepts.map((concept, index) => ({
+      concept_name: concept.name,
+      image_url: `https://placehold.co/1024x1024/4299E1/white?text=${encodeURIComponent(concept.name)}`,
+    })),
   }
 }

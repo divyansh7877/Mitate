@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState } from 'react'
-import type { ReactNode } from 'react';
+import type { ReactNode } from 'react'
 
 export type KnowledgeLevel = 'beginner' | 'intermediate' | 'advanced'
 export type AppStep = 'landing' | 'loading' | 'result'
@@ -16,11 +16,19 @@ export interface SummaryData {
   real_world_impact: string
 }
 
+// For simple_visuals mode - one image per concept
+export interface ConceptImage {
+  concept_name: string
+  image_url: string
+}
+
 export interface InfographicResult {
   paperTitle: string
   paperUrl: string
   imageUrl: string
   summary: SummaryData
+  // Optional: present when using simple_visuals generation mode
+  conceptImages?: ConceptImage[]
 }
 
 interface AppContextType {

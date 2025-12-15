@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { CheckCircle2, Circle, Loader2 } from 'lucide-react'
-import type { InfographicResult } from '@/lib/app-context';
+import type { InfographicResult } from '@/lib/app-context'
 import { useApp } from '@/lib/app-context'
 import { api } from '@/lib/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -43,6 +43,8 @@ export const LoadingState = () => {
             paperUrl: status.result.paper_url,
             imageUrl: status.result.image_url,
             summary: status.result.summary,
+            // Include concept_images if present (simple_visuals mode)
+            conceptImages: status.result.concept_images,
           }
 
           setResult(result)

@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useApp } from '@/lib/app-context'
 import { Button } from '@/components/ui/button'
 import {
@@ -9,10 +9,18 @@ import {
   CardTitle,
   CardDescription,
 } from '@/components/ui/card'
-import { Download, RotateCcw, FileText, ArrowLeft } from 'lucide-react'
+import {
+  Download,
+  RotateCcw,
+  FileText,
+  ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react'
 
 export const ResultPage = () => {
   const { result, setStep, setQuery } = useApp()
+  const [currentSlide, setCurrentSlide] = useState(0)
 
   if (!result) {
     return (
@@ -23,11 +31,23 @@ export const ResultPage = () => {
     )
   }
 
+  // Check if we're in simple_visuals mode (has concept_images)
+  const hasConceptImages =
+    result.conceptImages && result.conceptImages.length > 0
+  const conceptImages = result.conceptImages || []
+
   const handleDownload = () => {
-    // Basic download implementation for the image
+    // Download current image (either single infographic or current carousel image)
+    const imageUrl = hasConceptImages
+      ? conceptImages[currentSlide]?.image_url
+      : result.imageUrl
+    const fileName = hasConceptImages
+      ? `${result.paperTitle.replace(/\s+/g, '-').toLowerCase()}-${conceptImages[currentSlide]?.concept_name.replace(/\s+/g, '-').toLowerCase()}.png`
+      : `arxiv-explainer-${result.paperTitle.replace(/\s+/g, '-').toLowerCase()}.png`
+
     const link = document.createElement('a')
-    link.href = result.imageUrl
-    link.download = `arxiv-explainer-${result.paperTitle.replace(/\s+/g, '-').toLowerCase()}.png`
+    link.href = imageUrl
+    link.download = fileName
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
@@ -38,6 +58,25 @@ export const ResultPage = () => {
     setStep('landing')
   }
 
+  const goToPrevSlide = () => {
+    setCurrentSlide((prev) =>
+      prev === 0 ? conceptImages.length - 1 : prev - 1,
+    )
+  }
+
+  const goToNextSlide = () => {
+    setCurrentSlide((prev) =>
+      prev === conceptImages.length - 1 ? 0 : prev + 1,
+    )
+  }
+
+  // Get current concept for carousel mode
+  const currentConcept = hasConceptImages
+    ? result.summary.key_concepts.find(
+        (c) => c.name === conceptImages[currentSlide]?.concept_name,
+      ) || result.summary.key_concepts[currentSlide]
+    : null
+
   return (
     <div className="min-h-screen bg-background p-4 md:p-8 flex flex-col items-center">
       <div className="w-full max-w-4xl space-y-6">
@@ -47,14 +86,78 @@ export const ResultPage = () => {
 
         <Card className="overflow-hidden">
           <CardContent className="p-0">
-            {/* Placeholder for the Generated Infographic */}
-            <div className="w-full aspect-square bg-muted flex items-center justify-center relative group">
-              <img
-                src={result.imageUrl}
-                alt={`Infographic for ${result.paperTitle}`}
-                className="w-full h-full object-contain"
-              />
-            </div>
+            {hasConceptImages ? (
+              /* Carousel Mode - Simple Visuals */
+              <div className="relative">
+                {/* Image Container */}
+                <div className="w-full aspect-square bg-muted flex items-center justify-center relative">
+                  <img
+                    src={conceptImages[currentSlide]?.image_url}
+                    alt={`Visual for ${conceptImages[currentSlide]?.concept_name}`}
+                    className="w-full h-full object-contain"
+                  />
+
+                  {/* Navigation Arrows */}
+                  <button
+                    onClick={goToPrevSlide}
+                    className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-2 transition-colors"
+                    aria-label="Previous concept"
+                  >
+                    <ChevronLeft className="h-6 w-6" />
+                  </button>
+                  <button
+                    onClick={goToNextSlide}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-2 transition-colors"
+                    aria-label="Next concept"
+                  >
+                    <ChevronRight className="h-6 w-6" />
+                  </button>
+                </div>
+
+                {/* Dot Indicators */}
+                <div className="flex justify-center gap-2 py-4 bg-muted/50">
+                  {conceptImages.map((_, index) => (
+                    <button
+                      key={index}
+                      onClick={() => setCurrentSlide(index)}
+                      className={`w-3 h-3 rounded-full transition-colors ${
+                        index === currentSlide
+                          ? 'bg-primary'
+                          : 'bg-muted-foreground/30 hover:bg-muted-foreground/50'
+                      }`}
+                      aria-label={`Go to concept ${index + 1}`}
+                    />
+                  ))}
+                </div>
+
+                {/* Current Concept Info */}
+                {currentConcept && (
+                  <div className="p-6 border-t">
+                    <div className="text-sm text-muted-foreground mb-1">
+                      Concept {currentSlide + 1} of {conceptImages.length}
+                    </div>
+                    <h3 className="font-semibold text-xl mb-2">
+                      {currentConcept.name}
+                    </h3>
+                    <p className="text-muted-foreground mb-2">
+                      {currentConcept.explanation}
+                    </p>
+                    <p className="text-sm text-muted-foreground/70 italic">
+                      💡 {currentConcept.visual_metaphor}
+                    </p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* Original Mode - Single Infographic */
+              <div className="w-full aspect-square bg-muted flex items-center justify-center relative group">
+                <img
+                  src={result.imageUrl}
+                  alt={`Infographic for ${result.paperTitle}`}
+                  className="w-full h-full object-contain"
+                />
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -87,7 +190,9 @@ export const ResultPage = () => {
               <div className="space-y-4">
                 {result.summary.key_concepts.map((concept, index) => (
                   <div key={index} className="border-l-2 border-primary pl-4">
-                    <h4 className="font-medium text-foreground">{concept.name}</h4>
+                    <h4 className="font-medium text-foreground">
+                      {concept.name}
+                    </h4>
                     <p className="text-muted-foreground text-sm mt-1">
                       {concept.explanation}
                     </p>

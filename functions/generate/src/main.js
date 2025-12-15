@@ -192,6 +192,20 @@ export default async ({ req, res, log, error }) => {
                 image_url: resultDoc.image_url || summary.image_url || null,
                 summary: summary,
               }
+
+              // Include concept_images if available (simple_visuals mode)
+              if (resultDoc.concept_images) {
+                try {
+                  response.result.concept_images = JSON.parse(
+                    resultDoc.concept_images,
+                  )
+                  log(
+                    `Including ${response.result.concept_images.length} concept images in response`,
+                  )
+                } catch (parseError) {
+                  error(`Error parsing concept_images: ${parseError.message}`)
+                }
+              }
             } else {
               log(
                 `WARNING: Request marked complete but no result found for ${requestId}`,
