@@ -1,6 +1,6 @@
-import { Client, Databases, Storage, ID, InputFile } from 'node-appwrite'
-import axios from 'axios'
-import { parseStringPromise } from 'xml2js'
+import { Client, Databases, Storage, ID } from 'node-appwrite';
+import axios from 'axios';
+import { parseStringPromise } from 'xml2js';
 
 // Environment variables
 const {
@@ -19,39 +19,42 @@ const {
   FAL_KEY,
   DATABASE_ID = 'mitate-db',
   BUCKET_ID = 'poster-images',
-} = process.env
+} = process.env;
 
-const EFFECTIVE_DO_API_KEY = DO_GRADIENT_API_KEY || DIGITALOCEAN_API_KEY || DO_API_KEY
+const EFFECTIVE_DO_API_KEY =
+  DO_GRADIENT_API_KEY || DIGITALOCEAN_API_KEY || DO_API_KEY;
 const EFFECTIVE_DO_MODEL =
-  DO_GRADIENT_MODEL || DIGITALOCEAN_MODEL || 'meta-llama/llama-3-70b-instruct'
+  DO_GRADIENT_MODEL || DIGITALOCEAN_MODEL || 'meta-llama/llama-3-70b-instruct';
 
-const EFFECTIVE_FIBO_API_KEY = FIBO_API_KEY || BRIA_API_KEY
+const EFFECTIVE_FIBO_API_KEY = FIBO_API_KEY || BRIA_API_KEY;
 
 // DigitalOcean Gradient Serverless Inference endpoint
-const DO_GRADIENT_ENDPOINT = 'https://inference.do-ai.run/v1/chat/completions'
+const DO_GRADIENT_ENDPOINT = 'https://inference.do-ai.run/v1/chat/completions';
 
 export default async ({ req, res, log, error: logError }) => {
   const client = new Client()
-    .setEndpoint(APPWRITE_FUNCTION_API_ENDPOINT || 'https://cloud.appwrite.io/v1')
+    .setEndpoint(
+      APPWRITE_FUNCTION_API_ENDPOINT || 'https://nyc.cloud.appwrite.io/v1'
+    )
     .setProject(APPWRITE_FUNCTION_PROJECT_ID)
-    .setKey(APPWRITE_API_KEY)
+    .setKey(APPWRITE_API_KEY);
 
-  const databases = new Databases(client)
-  const storage = new Storage(client)
+  const databases = new Databases(client);
+  const storage = new Storage(client);
 
-  let payload
+  let payload;
   try {
-    payload = JSON.parse(req.body || '{}')
+    payload = JSON.parse(req.body || '{}');
   } catch (e) {
-    return res.json({ error: 'Invalid JSON' }, 400)
+    return res.json({ error: 'Invalid JSON' }, 400);
   }
 
-  const { requestId } = payload
+  const { requestId } = payload;
   if (!requestId) {
-    return res.json({ error: 'Missing requestId' }, 400)
+    return res.json({ error: 'Missing requestId' }, 400);
   }
 
-  log(`Starting processing for request: ${requestId}`)
+  log(`Starting processing for request: ${requestId}`);
 
   /**
    * Update request status in database
@@ -61,27 +64,40 @@ export default async ({ req, res, log, error: logError }) => {
       const updateData = {
         status,
         updated_at: new Date().toISOString(),
-      }
-      if (errorMessage) updateData.error = errorMessage
+      };
+      if (errorMessage) updateData.error = errorMessage;
 
       try {
-        await databases.updateDocument(DATABASE_ID, 'requests', requestId, updateData)
+        await databases.updateDocument(
+          DATABASE_ID,
+          'requests',
+          requestId,
+          updateData
+        );
       } catch (err) {
         // Some deployments don't have an `error` attribute on `requests`.
         // Retry without it so status updates still work.
-        const msg = err?.message || ''
-        if (updateData.error && /unknown attribute|invalid document/i.test(msg)) {
-          const { error: _ignored, ...withoutError } = updateData
-          await databases.updateDocument(DATABASE_ID, 'requests', requestId, withoutError)
+        const msg = err?.message || '';
+        if (
+          updateData.error &&
+          /unknown attribute|invalid document/i.test(msg)
+        ) {
+          const { error: _ignored, ...withoutError } = updateData;
+          await databases.updateDocument(
+            DATABASE_ID,
+            'requests',
+            requestId,
+            withoutError
+          );
         } else {
-          throw err
+          throw err;
         }
       }
-      log(`Status updated to: ${status}`)
+      log(`Status updated to: ${status}`);
     } catch (err) {
-      logError(`Failed to update status: ${err.message}`)
+      logError(`Failed to update status: ${err.message}`);
     }
-  }
+  };
 
   try {
     // ============================================================
@@ -90,124 +106,148 @@ export default async ({ req, res, log, error: logError }) => {
     const requestDoc = await databases.getDocument(
       DATABASE_ID,
       'requests',
-      requestId,
-    )
-    const { query, query_type, knowledge_level } = requestDoc
+      requestId
+    );
+    const { query, query_type, knowledge_level } = requestDoc;
 
     log(
-      `Processing: query="${query}", type="${query_type}", level="${knowledge_level}"`,
-    )
+      `Processing: query="${query}", type="${query_type}", level="${knowledge_level}"`
+    );
 
     // ============================================================
     // Step 2: Agent 1 - Paper Finder
     // ============================================================
-    await updateStatus('finding_paper')
+    await updateStatus('finding_paper');
 
-    let paperMetadata
+    let paperMetadata;
 
     if (query_type === 'arxiv_link') {
       // Extract arXiv ID from URL
-      const arxivId = extractArxivId(query)
+      const arxivId = extractArxivId(query);
       if (!arxivId) {
-        throw new Error('Invalid ArXiv URL format')
+        throw new Error('Invalid ArXiv URL format');
       }
-      paperMetadata = await fetchPaperMetadata(arxivId, log, logError)
+      paperMetadata = await fetchPaperMetadata(arxivId, log, logError);
     } else {
       // Search ArXiv for topic
-      paperMetadata = await searchArxivByTopic(query, log, logError)
+      paperMetadata = await searchArxivByTopic(query, log, logError);
     }
 
-    log(`Found paper: ${paperMetadata.title} (${paperMetadata.arxiv_id})`)
+    log(`Found paper: ${paperMetadata.title} (${paperMetadata.arxiv_id})`);
 
     // ============================================================
     // Step 3: Agent 2 - DigitalOcean Gradient AI Summarizer
     // ============================================================
-    await updateStatus('summarizing')
+    await updateStatus('summarizing');
 
     const summary = await summarizeWithDigitalOceanGradient(
       paperMetadata.abstract,
       paperMetadata.title,
       knowledge_level,
       log,
-      logError,
-    )
+      logError
+    );
 
-    log(`Summary generated with ${summary.key_concepts.length} concepts`)
+    log(`Summary generated with ${summary.key_concepts.length} concepts`);
 
     // ============================================================
     // Step 4: Agent 3 - Image Generation (Simplified for MVP)
     // ============================================================
-    await updateStatus('generating_image')
+    await updateStatus('generating_image');
 
     // For MVP, we'll use a placeholder or simple FIBO call
     // In production, this would use the full PosterGenerationOrchestrator
-    let imageUrl
+    let imageUrl;
+    let fiboMetadata = {
+      fibo_prompt: null,
+      fibo_seed: Math.floor(Math.random() * 1000000),
+    };
 
     if (EFFECTIVE_FIBO_API_KEY) {
       try {
-        imageUrl = await generateWithFibo(
+        const result = await generateWithFibo(
           summary,
           knowledge_level,
           log,
-          logError,
-        )
+          logError
+        );
+        imageUrl = result.imageUrl;
+        fiboMetadata = result.metadata;
       } catch (fiboError) {
-        log(`FIBO generation failed: ${fiboError.message}, using placeholder`)
-        imageUrl = `https://placehold.co/1024x1024/059669/white?text=${encodeURIComponent(summary.title)}`
+        log(`FIBO generation failed: ${fiboError.message}, using placeholder`);
+        imageUrl = `https://placehold.co/1024x1024/059669/white?text=${encodeURIComponent(summary.title)}`;
       }
     } else {
-      log('FIBO_API_KEY not set, using placeholder image')
-      imageUrl = `https://placehold.co/1024x1024/059669/white?text=${encodeURIComponent(summary.title)}`
+      log('FIBO_API_KEY not set, using placeholder image');
+      imageUrl = `https://placehold.co/1024x1024/059669/white?text=${encodeURIComponent(summary.title)}`;
     }
 
-    log(`Image generated: ${imageUrl}`)
+    log(`Image generated: ${imageUrl}`);
 
     // ============================================================
     // Step 5: Store Result
     // ============================================================
-    const baseResultDoc = {
+    // Add image_url to summary since it might not be a separate field in the schema
+    const summaryWithImage = {
+      ...summary,
+      image_url: imageUrl,
+    };
+
+    // Minimal schema that all deployments should have
+    const minimalResultDoc = {
       request_id: requestId,
       arxiv_id: paperMetadata.arxiv_id,
       paper_title: paperMetadata.title,
       paper_url: paperMetadata.arxiv_url,
-      summary_json: JSON.stringify(summary),
+      summary_json: JSON.stringify(summaryWithImage),
+    };
+
+    // Extended schema with additional fields
+    const extendedResultDoc = {
+      ...minimalResultDoc,
       image_url: imageUrl,
-      image_storage_id: null, // Could upload to storage bucket here
+      image_storage_id: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-    }
-
-    const extendedResultDoc = {
-      ...baseResultDoc,
       fibo_structured_prompt: fiboMetadata.fibo_prompt
         ? JSON.stringify(fiboMetadata.fibo_prompt)
         : '',
       fibo_seed: fiboMetadata.fibo_seed || Math.floor(Math.random() * 1000000),
-    }
+    };
 
     try {
-      await databases.createDocument(DATABASE_ID, 'results', ID.unique(), extendedResultDoc)
+      await databases.createDocument(
+        DATABASE_ID,
+        'results',
+        ID.unique(),
+        extendedResultDoc
+      );
     } catch (err) {
-      // Some deployments have a minimal `results` schema (no fibo_* fields).
+      // Some deployments have a minimal `results` schema.
       // Retry with minimal fields so the pipeline still completes.
-      const msg = err?.message || ''
+      const msg = err?.message || '';
       if (/unknown attribute|invalid document/i.test(msg)) {
-        await databases.createDocument(DATABASE_ID, 'results', ID.unique(), baseResultDoc)
+        await databases.createDocument(
+          DATABASE_ID,
+          'results',
+          ID.unique(),
+          minimalResultDoc
+        );
       } else {
-        throw err
+        throw err;
       }
     }
 
-    await updateStatus('complete')
+    await updateStatus('complete');
 
-    log(`Processing complete for request: ${requestId}`)
-    return res.json({ success: true }, 200)
+    log(`Processing complete for request: ${requestId}`);
+    return res.json({ success: true }, 200);
   } catch (err) {
-    logError(`Processing failed: ${err.message}`)
-    await updateStatus('failed', err.message)
-    return res.json({ error: err.message }, 500)
+    logError(`Processing failed: ${err.message}`);
+    await updateStatus('failed', err.message);
+    return res.json({ error: err.message }, 500);
   }
-}
+};
 
 // ============================================================
 // Helper Functions
@@ -217,8 +257,8 @@ export default async ({ req, res, log, error: logError }) => {
  * Extract arXiv ID from URL
  */
 function extractArxivId(url) {
-  const match = url.match(/arxiv\.org\/(?:abs|pdf)\/(\d+\.\d+)/)
-  return match ? match[1] : null
+  const match = url.match(/arxiv\.org\/(?:abs|pdf)\/(\d+\.\d+)/);
+  return match ? match[1] : null;
 }
 
 /**
@@ -228,14 +268,14 @@ async function fetchPaperMetadata(arxivId, log, logError) {
   try {
     const response = await axios.get(
       `http://export.arxiv.org/api/query?id_list=${arxivId}`,
-      { timeout: 10000 },
-    )
+      { timeout: 10000 }
+    );
 
-    const parsed = await parseStringPromise(response.data)
-    const entry = parsed.feed.entry?.[0]
+    const parsed = await parseStringPromise(response.data);
+    const entry = parsed.feed.entry?.[0];
 
     if (!entry) {
-      throw new Error('Paper not found on ArXiv')
+      throw new Error('Paper not found on ArXiv');
     }
 
     return {
@@ -246,10 +286,10 @@ async function fetchPaperMetadata(arxivId, log, logError) {
       published: entry.published[0],
       pdf_url: `https://arxiv.org/pdf/${arxivId}.pdf`,
       arxiv_url: `https://arxiv.org/abs/${arxivId}`,
-    }
+    };
   } catch (error) {
-    logError(`Error fetching arXiv metadata: ${error.message}`)
-    throw new Error(`Failed to fetch paper from ArXiv: ${error.message}`)
+    logError(`Error fetching arXiv metadata: ${error.message}`);
+    throw new Error(`Failed to fetch paper from ArXiv: ${error.message}`);
   }
 }
 
@@ -260,18 +300,18 @@ async function searchArxivByTopic(query, log, logError) {
   try {
     const response = await axios.get(
       `http://export.arxiv.org/api/query?search_query=all:${encodeURIComponent(query)}&max_results=1`,
-      { timeout: 10000 },
-    )
+      { timeout: 10000 }
+    );
 
-    const parsed = await parseStringPromise(response.data)
-    const entry = parsed.feed.entry?.[0]
+    const parsed = await parseStringPromise(response.data);
+    const entry = parsed.feed.entry?.[0];
 
     if (!entry) {
-      throw new Error('No papers found for this topic')
+      throw new Error('No papers found for this topic');
     }
 
-    const idParts = entry.id[0].split('/')
-    const arxivId = idParts[idParts.length - 1]
+    const idParts = entry.id[0].split('/');
+    const arxivId = idParts[idParts.length - 1];
 
     return {
       arxiv_id: arxivId,
@@ -281,10 +321,10 @@ async function searchArxivByTopic(query, log, logError) {
       published: entry.published[0],
       pdf_url: `https://arxiv.org/pdf/${arxivId}.pdf`,
       arxiv_url: `https://arxiv.org/abs/${arxivId}`,
-    }
+    };
   } catch (error) {
-    logError(`Error searching arXiv: ${error.message}`)
-    throw new Error(`Failed to search ArXiv: ${error.message}`)
+    logError(`Error searching arXiv: ${error.message}`);
+    throw new Error(`Failed to search ArXiv: ${error.message}`);
   }
 }
 
@@ -296,19 +336,19 @@ async function summarizeWithDigitalOceanGradient(
   title,
   knowledgeLevel,
   log,
-  logError,
+  logError
 ) {
   if (!EFFECTIVE_DO_API_KEY) {
     logError(
-      'DigitalOcean Gradient API key not configured (set DO_GRADIENT_API_KEY or DIGITALOCEAN_API_KEY), using fallback',
-    )
-    return generateFallbackSummary(title, abstract, knowledgeLevel)
+      'DigitalOcean Gradient API key not configured (set DO_GRADIENT_API_KEY or DIGITALOCEAN_API_KEY), using fallback'
+    );
+    return generateFallbackSummary(title, abstract, knowledgeLevel);
   }
 
   try {
-    const prompt = buildSummarizationPrompt(abstract, title, knowledgeLevel)
+    const prompt = buildSummarizationPrompt(abstract, title, knowledgeLevel);
 
-    log('Calling DigitalOcean Gradient AI for summarization...')
+    log('Calling DigitalOcean Gradient AI for summarization...');
 
     // Call DigitalOcean Gradient Serverless Inference API
     const response = await axios.post(
@@ -335,29 +375,29 @@ async function summarizeWithDigitalOceanGradient(
           'Content-Type': 'application/json',
         },
         timeout: 60000, // 60 second timeout
-      },
-    )
+      }
+    );
 
-    const content = response.data.choices[0].message.content.trim()
+    const content = response.data.choices[0].message.content.trim();
 
     // Try to extract JSON if wrapped in markdown code blocks
-    let jsonContent = content
-    const codeBlockMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/)
+    let jsonContent = content;
+    const codeBlockMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
     if (codeBlockMatch) {
-      jsonContent = codeBlockMatch[1]
+      jsonContent = codeBlockMatch[1];
     }
 
-    const summary = JSON.parse(jsonContent)
-    validateSummary(summary)
+    const summary = JSON.parse(jsonContent);
+    validateSummary(summary);
 
     return {
       title,
       ...summary,
-    }
+    };
   } catch (error) {
-    logError(`DigitalOcean Gradient AI error: ${error.message}`)
-    log('Falling back to basic summary generation')
-    return generateFallbackSummary(title, abstract, knowledgeLevel)
+    logError(`DigitalOcean Gradient AI error: ${error.message}`);
+    log('Falling back to basic summary generation');
+    return generateFallbackSummary(title, abstract, knowledgeLevel);
   }
 }
 
@@ -384,7 +424,7 @@ function buildSummarizationPrompt(abstract, title, knowledgeLevel) {
 - Discuss limitations and nuances
 - Reference related work
 - Focus on theoretical foundations and implications`,
-  }
+  };
 
   return `You are summarizing the research paper titled "${title}" for a ${knowledgeLevel} audience.
 
@@ -416,7 +456,7 @@ Requirements:
 - Adjust complexity to ${knowledgeLevel} level
 - Return ONLY valid JSON, no markdown formatting, no additional text
 
-JSON:`
+JSON:`;
 }
 
 /**
@@ -428,27 +468,27 @@ function validateSummary(summary) {
     'key_concepts',
     'key_finding',
     'real_world_impact',
-  ]
+  ];
 
   for (const field of required) {
     if (!summary[field]) {
-      throw new Error(`Missing required field: ${field}`)
+      throw new Error(`Missing required field: ${field}`);
     }
   }
 
   if (!Array.isArray(summary.key_concepts)) {
-    throw new Error('key_concepts must be an array')
+    throw new Error('key_concepts must be an array');
   }
 
   if (summary.key_concepts.length < 3 || summary.key_concepts.length > 7) {
-    throw new Error('Must have 3-7 key concepts')
+    throw new Error('Must have 3-7 key concepts');
   }
 
   for (const concept of summary.key_concepts) {
     if (!concept.name || !concept.explanation || !concept.visual_metaphor) {
       throw new Error(
-        'Each concept must have name, explanation, and visual_metaphor',
-      )
+        'Each concept must have name, explanation, and visual_metaphor'
+      );
     }
   }
 }
@@ -457,7 +497,7 @@ function validateSummary(summary) {
  * Generate fallback summary (when DigitalOcean Gradient AI unavailable)
  */
 function generateFallbackSummary(title, abstract, knowledgeLevel) {
-  const abstractSentences = abstract.split('. ').filter((s) => s.length > 20)
+  const abstractSentences = abstract.split('. ').filter((s) => s.length > 20);
 
   return {
     title,
@@ -490,7 +530,7 @@ function generateFallbackSummary(title, abstract, knowledgeLevel) {
       'This research advances the field',
     real_world_impact:
       'This work contributes to the advancement of research and technology',
-  }
+  };
 }
 
 /**
@@ -501,9 +541,18 @@ async function generateWithFibo(summary, knowledgeLevel, log, logError) {
   // In production, this would use the full PosterGenerationOrchestrator
   // from src/services/posterGenerationOrchestrator.ts
 
-  log('FIBO integration: Using placeholder (full integration pending)')
+  log('FIBO integration: Using placeholder (full integration pending)');
 
   // Return placeholder that includes the paper title
-  const encodedTitle = encodeURIComponent(summary.title.substring(0, 50))
-  return `https://placehold.co/1024x1024/059669/white?text=${encodedTitle}`
+  const encodedTitle = encodeURIComponent(summary.title.substring(0, 50));
+  const imageUrl = `https://placehold.co/1024x1024/059669/white?text=${encodedTitle}`;
+
+  // Return both image URL and metadata
+  return {
+    imageUrl,
+    metadata: {
+      fibo_prompt: null,
+      fibo_seed: Math.floor(Math.random() * 1000000),
+    },
+  };
 }

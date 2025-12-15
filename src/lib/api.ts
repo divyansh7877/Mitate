@@ -41,13 +41,16 @@ export const api = {
 
       console.log('[API] Generate function response:', response)
 
-      if (response.statusCode >= 200 && response.statusCode < 300) {
+      if (
+        response.responseStatusCode >= 200 &&
+        response.responseStatusCode < 300
+      ) {
         const result = JSON.parse(response.responseBody)
         console.log('[API] Generate result:', result)
         return result
       } else {
         throw new Error(
-          `Function returned status ${response.statusCode}: ${response.stderr || response.responseBody}`,
+          `Function returned status ${response.responseStatusCode}: ${response.errors || response.responseBody || 'No error details'}`,
         )
       }
     } catch (error) {
@@ -85,15 +88,18 @@ export const api = {
 
       console.log('[API] Status response:', response)
 
-      if (response.statusCode >= 200 && response.statusCode < 300) {
+      if (
+        response.responseStatusCode >= 200 &&
+        response.responseStatusCode < 300
+      ) {
         const result = JSON.parse(response.responseBody)
         console.log('[API] Status result:', result)
         return result
-      } else if (response.statusCode === 404) {
+      } else if (response.responseStatusCode === 404) {
         throw new Error('Request not found')
       } else {
         throw new Error(
-          `Function returned status ${response.statusCode}: ${response.stderr || response.responseBody}`,
+          `Function returned status ${response.responseStatusCode}: ${response.errors || response.responseBody || 'No error details'}`,
         )
       }
     } catch (error) {

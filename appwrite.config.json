@@ -188,6 +188,59 @@
           "size": 10000,
           "default": null,
           "encrypt": false
+        },
+        {
+          "key": "image_url",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "size": 2000,
+          "default": null,
+          "encrypt": false
+        },
+        {
+          "key": "image_storage_id",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "size": 255,
+          "default": null,
+          "encrypt": false
+        },
+        {
+          "key": "created_at",
+          "type": "datetime",
+          "required": false,
+          "array": false,
+          "default": null,
+          "encrypt": false
+        },
+        {
+          "key": "updated_at",
+          "type": "datetime",
+          "required": false,
+          "array": false,
+          "default": null,
+          "encrypt": false
+        },
+        {
+          "key": "fibo_structured_prompt",
+          "type": "string",
+          "required": false,
+          "array": false,
+          "size": 10000,
+          "default": null,
+          "encrypt": false
+        },
+        {
+          "key": "fibo_seed",
+          "type": "integer",
+          "required": false,
+          "array": false,
+          "min": 0,
+          "max": 999999999,
+          "default": null,
+          "encrypt": false
         }
       ],
       "indexes": []
@@ -369,14 +422,27 @@
       "specification": "s-0.5vcpu-512mb",
       "execute": ["any"],
       "events": [],
-      "scopes": ["users.read"],
+      "scopes": [
+        "users.read",
+        "databases.read",
+        "databases.write",
+        "buckets.write"
+      ],
       "schedule": "",
       "timeout": 900,
       "enabled": true,
       "logging": true,
       "entrypoint": "src/main.js",
       "commands": "npm install",
-      "path": "functions/process-generation"
+      "path": "functions/process-generation",
+      "variables": {
+        "APPWRITE_API_KEY": "standard_11ca8fe68a015efaaf769f0509ff5f7d53cc1545318b8265c4acacb0f4898e4bd8e19394e67f8f938747f9f13b8ea5fe17573340dea9420da2d2e4d1428abece6da47c1048d1c2eec50f0c63780e4d03ef497fd6593a7938c696b473d68cb9a2b44f296cf6a217312ce1a18648521783ab6da6dbf3c1315cbc044b3101df64d4",
+        "DATABASE_ID": "mitate-db",
+        "BUCKET_ID": "poster-images",
+        "FIBO_API_KEY": "",
+        "FAL_KEY": "",
+        "DO_GRADIENT_API_KEY": ""
+      }
     },
     {
       "$id": "generate-poster-func",
@@ -385,14 +451,27 @@
       "specification": "s-0.5vcpu-512mb",
       "execute": ["any"],
       "events": [],
-      "scopes": ["users.read"],
+      "scopes": [
+        "databases.read",
+        "databases.write",
+        "functions.write",
+        "execution.write"
+      ],
       "schedule": "",
       "timeout": 900,
       "enabled": true,
       "logging": true,
       "entrypoint": "src/main.js",
       "commands": "npm install",
-      "path": "functions/generate-poster"
+      "path": "functions/generate",
+      "variables": {
+        "APPWRITE_API_KEY": "standard_11ca8fe68a015efaaf769f0509ff5f7d53cc1545318b8265c4acacb0f4898e4bd8e19394e67f8f938747f9f13b8ea5fe17573340dea9420da2d2e4d1428abece6da47c1048d1c2eec50f0c63780e4d03ef497fd6593a7938c696b473d68cb9a2b44f296cf6a217312ce1a18648521783ab6da6dbf3c1315cbc044b3101df64d4",
+        "DATABASE_ID": "mitate-db",
+        "WORKER_FUNCTION_ID": "693db15f0009c3b28c94",
+        "FIBO_API_KEY": "4ef8a80ab65341c3899c1ec07d48e53d",
+        "FAL_KEY": "",
+        "DO_GRADIENT_API_KEY": "sk-do-gytqgD88XsEcGkdCBjk1yiEN8GPL3n0Z1NU0WCA-rhi6_tn6C8YCSFw1SP"
+      }
     }
   ]
 }
