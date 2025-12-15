@@ -6,6 +6,14 @@ Transform complex research papers into beautiful, educational infographics tailo
 
 Mitate takes arXiv research papers and automatically generates professional visual explainers using AI-powered summarization and image generation. The system adapts content complexity to beginner, intermediate, or advanced knowledge levels.
 
+### Generation Modes
+
+Mitate supports two visualization modes:
+
+1. **Infographic Mode** (default): Generates a single comprehensive infographic with text overlays explaining all key concepts in one image.
+
+2. **Simple Visuals Mode**: Generates 3-7 separate text-free images (one per key concept) displayed in an interactive carousel. Each image is a pure visual icon/metaphor with explanatory text rendered in the UI below. This mode works better with FIBO's diffusion model limitations around text rendering.
+
 ## Architecture
 
 ### Tech Stack
@@ -75,9 +83,10 @@ Stores completed infographics and summaries.
 - `paper_title` (string)
 - `paper_url` (string)
 - `summary_json` (string) - AI-generated summary with key concepts
-- `image_url` (string) - FIBO-generated infographic URL
-- `fibo_structured_prompt` (string) - Prompt used for generation
-- `fibo_seed` (integer) - Seed for reproducibility
+- `image_url` (string) - FIBO-generated infographic URL (or first image in simple_visuals mode)
+- `concept_images` (string) - JSON array of concept images for simple_visuals mode (optional)
+- `image_storage_id` (string) - Appwrite storage ID (optional)
+- `created_at`, `updated_at` (datetime)
 
 ### `poster_generations` Collection
 Extended metadata for poster generation process (optional/future use).
@@ -92,6 +101,7 @@ BUCKET_ID=poster-images
 FIBO_API_KEY=<fibo_key>
 DO_GRADIENT_API_KEY=<digitalocean_key>
 DO_GRADIENT_MODEL=llama3.3-70b-instruct
+GENERATION_MODE=simple_visuals  # or "infographic" for single-image mode
 ```
 
 ### generate-poster function
@@ -245,11 +255,17 @@ The learnings and patterns from this experimental code have been integrated into
 ## Status: Production Ready ✅
 
 - ✅ ArXiv paper discovery working
-- ✅ DigitalOcean AI summarization working
-- ✅ FIBO image generation working
-- ✅ Database schema deployed
+- ✅ DigitalOcean AI summarization working (max_tokens: 4000)
+- ✅ FIBO image generation working (both modes)
+- ✅ Database schema deployed with carousel support
 - ✅ Functions deployed and tested
-- ✅ Frontend built and ready to deploy
+- ✅ Frontend carousel UI implemented
+- ✅ Simple visuals mode with text-free image generation
+
+## Known Limitations
+
+- **FIBO Text Rendering**: FIBO's diffusion model occasionally renders text-like artifacts even with strong negative prompts. This is a model limitation. Simple Visuals mode minimizes this by using text-free icon-style prompts and rendering all text in the UI.
+- **DigitalOcean AI Token Limits**: Very long/complex papers may hit the 4000 token limit and fall back to basic summaries. The system handles this gracefully with fallback logic.
 
 ## Future Enhancements
 

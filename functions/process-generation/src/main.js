@@ -419,7 +419,7 @@ async function summarizeWithDigitalOceanGradient(
           },
         ],
         temperature: 0.1,
-        max_tokens: 2048,
+        max_tokens: 4000,
       },
       {
         headers: {
@@ -450,6 +450,16 @@ async function summarizeWithDigitalOceanGradient(
     log(
       `JSON content to parse (first 200 chars): ${jsonContent.substring(0, 200)}`
     );
+
+    // Check if JSON looks complete (ends with } or ])
+    const trimmed = jsonContent.trim();
+    if (!trimmed.endsWith('}') && !trimmed.endsWith(']')) {
+      logError('JSON response appears truncated (does not end with } or ])');
+      logError(`Last 100 chars: ${trimmed.slice(-100)}`);
+      throw new Error(
+        'Incomplete JSON response from DigitalOcean AI - likely hit token limit'
+      );
+    }
 
     const summary = JSON.parse(jsonContent);
     validateSummary(summary);
