@@ -37,6 +37,12 @@ export const LoadingState = () => {
         if (status.status === 'complete' && status.result) {
           clearInterval(pollInterval)
 
+          console.log('[LoadingState] Raw result from API:', status.result)
+          console.log(
+            '[LoadingState] concept_images:',
+            status.result.concept_images,
+          )
+
           // Transform API result to app context format
           const result: InfographicResult = {
             paperTitle: status.result.paper_title,
@@ -46,6 +52,9 @@ export const LoadingState = () => {
             // Include concept_images if present (simple_visuals mode)
             conceptImages: status.result.concept_images,
           }
+
+          console.log('[LoadingState] Transformed result:', result)
+          console.log('[LoadingState] conceptImages:', result.conceptImages)
 
           setResult(result)
           setStep('result')

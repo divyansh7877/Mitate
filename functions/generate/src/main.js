@@ -183,6 +183,14 @@ export default async ({ req, res, log, error }) => {
 
             if (results.documents.length > 0) {
               const resultDoc = results.documents[0]
+              log(
+                `Result document fields: ${Object.keys(resultDoc).join(', ')}`,
+              )
+              log(
+                `concept_images field type: ${typeof resultDoc.concept_images}`,
+              )
+              log(`concept_images field value: ${resultDoc.concept_images}`)
+
               const summary = JSON.parse(resultDoc.summary_json)
 
               response.result = {
@@ -205,7 +213,13 @@ export default async ({ req, res, log, error }) => {
                 } catch (parseError) {
                   error(`Error parsing concept_images: ${parseError.message}`)
                 }
+              } else {
+                log('No concept_images field found in result document')
               }
+
+              log(
+                `Final response.result: ${JSON.stringify(response.result, null, 2)}`,
+              )
             } else {
               log(
                 `WARNING: Request marked complete but no result found for ${requestId}`,

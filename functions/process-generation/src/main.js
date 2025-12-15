@@ -261,10 +261,6 @@ export default async ({ req, res, log, error: logError }) => {
       image_storage_id: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-      fibo_structured_prompt: fiboMetadata.fibo_prompt
-        ? JSON.stringify(fiboMetadata.fibo_prompt)
-        : '',
-      fibo_seed: fiboMetadata.fibo_seed || Math.floor(Math.random() * 1000000),
       // Include concept_images for simple_visuals mode
       concept_images: conceptImages ? JSON.stringify(conceptImages) : null,
     };
@@ -436,12 +432,24 @@ async function summarizeWithDigitalOceanGradient(
 
     const content = response.data.choices[0].message.content.trim();
 
+    log(`Raw DO AI response length: ${content.length} chars`);
+    log(`First 500 chars: ${content.substring(0, 500)}`);
+
     // Try to extract JSON if wrapped in markdown code blocks
     let jsonContent = content;
     const codeBlockMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
     if (codeBlockMatch) {
       jsonContent = codeBlockMatch[1];
+      log('Extracted JSON from markdown code block');
     }
+
+    if (!jsonContent || jsonContent.trim().length === 0) {
+      throw new Error('Empty response from DigitalOcean AI');
+    }
+
+    log(
+      `JSON content to parse (first 200 chars): ${jsonContent.substring(0, 200)}`
+    );
 
     const summary = JSON.parse(jsonContent);
     validateSummary(summary);
@@ -456,6 +464,12 @@ async function summarizeWithDigitalOceanGradient(
       logError(`DO API status: ${error.response.status}`);
       logError(`DO API error data: ${JSON.stringify(error.response.data)}`);
     }
+    if (error.name === 'SyntaxError') {
+      logError(
+        `JSON parse error - this usually means the AI response was not valid JSON`
+      );
+    }
+    logError(`Error stack: ${error.stack}`);
     log('Falling back to basic summary generation');
     return generateFallbackSummary(title, abstract, knowledgeLevel);
   }
@@ -1048,7 +1062,7 @@ async function generateSimpleVisuals(summary, knowledgeLevel, log, logError) {
           aspect_ratio: '1:1',
           fast: false,
           negative_prompt:
-            'text, words, letters, numbers, labels, captions, titles, subtitles, watermark, signature, logo, busy background, complex details, cluttered, photorealistic, blurry, low quality, amateur',
+            'text, words, letters, alphabet, numbers, digits, writing, typography, font, labels, captions, titles, subtitles, annotations, watermark, signature, logo, symbols with text, character glyphs, written language, readable text, any form of writing, busy background, complex details, cluttered, photorealistic, blurry, low quality, amateur, gradients, shadows, 3d effects',
         },
         {
           headers: {
@@ -1123,25 +1137,25 @@ function buildSimpleVisualPrompt(concept, knowledgeLevel, index) {
   };
 
   return {
-    short_description: `A clean, simple illustration visualizing the concept: "${concept.visual_metaphor}". This represents "${concept.name}" - a key concept from a research paper. Style: Modern, minimalist digital illustration. NO TEXT, NO LABELS, NO WORDS anywhere in the image. The image should be immediately understandable as a visual metaphor. Clean, iconic representation.`,
+    short_description: `Create a minimalist icon-style illustration using ONLY visual shapes and colors. DO NOT include any text, letters, words, labels, or written content of any kind. This is a text-free visual metaphor representing: ${concept.visual_metaphor}. Use pure imagery - shapes, symbols, and colors only. Modern flat design style.`,
 
-    background_setting: `Clean, simple gradient or solid color background in soft ${knowledgeLevel === 'beginner' ? 'warm pastel tones' : knowledgeLevel === 'intermediate' ? 'cool professional tones' : 'neutral academic tones'}. Minimal, uncluttered, complements the main visual element.`,
+    background_setting: `Plain solid color background in ${knowledgeLevel === 'beginner' ? 'soft warm tones (peach, coral, sky blue)' : knowledgeLevel === 'intermediate' ? 'cool professional tones (navy, teal, slate)' : 'neutral academic tones (gray, beige, white)'}. No patterns, no text, no decorative elements.`,
 
     objects: [
       {
-        description: `Visual representation of: ${concept.visual_metaphor}. This metaphor represents the concept "${concept.name}". Create a clear, iconic illustration that captures this idea visually.`,
-        location: 'centered in frame, slightly above center',
-        relationship: 'Main focal point of the image',
-        relative_size: 'large, occupying 60-70% of the frame',
-        shape_and_color: `Clean illustration style with ${colorScheme.primary} as dominant color and ${colorScheme.accent} as accent. Bold, vibrant colors.`,
+        description: `A simple, abstract visual symbol or icon representing the metaphor: ${concept.visual_metaphor}. Use basic geometric shapes, recognizable symbols, or simplified illustrations. Think emoji-style or icon-style - pure visual communication without any text characters.`,
+        location: 'perfectly centered in the frame',
+        relationship: 'Single main visual element, standalone',
+        relative_size: 'large, 60-70% of frame height',
+        shape_and_color: `Bold ${colorScheme.primary} color as main fill, ${colorScheme.accent} as accent color. High contrast, flat design with solid colors only.`,
         texture:
-          'flat vector illustration style, clean edges, no gradients on main object',
-        appearance_details: `Simple, iconic representation with clean lines. NO TEXT OR LABELS. ${levelStyle[knowledgeLevel]} aesthetic. High contrast, visually striking.`,
-        orientation: 'facing viewer, balanced composition',
+          'completely flat vector style, no gradients, no shadows, no texture - pure solid colors',
+        appearance_details: `Icon-style illustration with clean edges. Think pictogram or emoji. NO letters, NO words, NO text of any kind. Simple geometric shapes forming a recognizable visual symbol. ${levelStyle[knowledgeLevel]} aesthetic.`,
+        orientation: 'centered, balanced, symmetrical if possible',
       },
     ],
 
-    text_render: [], // CRITICAL: Empty array - no text!
+    text_render: [], // CRITICAL: Empty array - this ensures no text overlay!
 
     lighting: {
       conditions: 'soft, even studio lighting',

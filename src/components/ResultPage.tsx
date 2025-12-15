@@ -32,9 +32,15 @@ export const ResultPage = () => {
   }
 
   // Check if we're in simple_visuals mode (has concept_images)
+  console.log('[ResultPage] Full result:', result)
+  console.log('[ResultPage] result.conceptImages:', result.conceptImages)
+
   const hasConceptImages =
     result.conceptImages && result.conceptImages.length > 0
   const conceptImages = result.conceptImages || []
+
+  console.log('[ResultPage] hasConceptImages:', hasConceptImages)
+  console.log('[ResultPage] conceptImages:', conceptImages)
 
   const handleDownload = () => {
     // Download current image (either single infographic or current carousel image)
