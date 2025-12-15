@@ -474,5 +474,22 @@
         "DO_GRADIENT_API_KEY": "sk-do-gytqgD88XsEcGkdCBjk1yiEN8GPL3n0Z1NU0WCA-rhi6_tn6C8YCSFw1SP"
       }
     }
+  ],
+  "sites": [
+    {
+      "$id": "mitate-frontend",
+      "name": "Mitate Frontend",
+      "domain": "",
+      "rootDirectory": "dist",
+      "errorDocument": "index.html",
+      "repository": {
+        "type": "github",
+        "owner": "divyansh7877",
+        "repo": "Mitate",
+        "branch": "main"
+      },
+      "buildCommand": "npm run build",
+      "installCommand": "npm install"
+    }
   ]
 }
