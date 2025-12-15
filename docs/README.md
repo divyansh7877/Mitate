@@ -202,17 +202,45 @@ npm install
 
 ```
 mitate/
-├── src/                      # Frontend React app
-│   ├── components/          # UI components
-│   ├── lib/                 # Appwrite client, API, types
-│   └── routes/              # TanStack Router routes
+├── src/                           # Frontend React app
+│   ├── components/               # UI components
+│   ├── lib/                      # Appwrite client, API, types
+│   ├── routes/                   # TanStack Router routes
+│   └── experimental-prompts/     # Experimental prompt engineering code (see below)
 ├── functions/
-│   ├── generate/            # Entry point function
-│   └── process-generation/  # Worker function
-├── docs/                    # Documentation
-├── appwrite.config.json     # Appwrite project configuration
+│   ├── generate/                 # Entry point function
+│   └── process-generation/       # Worker function
+├── docs/                         # Documentation
+├── appwrite.config.json          # Appwrite project configuration
 └── package.json
 ```
+
+### Experimental Prompts Directory
+
+The `src/experimental-prompts/` directory contains experimental code from our initial prompt engineering research phase. This code was used to develop and test the optimal FIBO structured prompts, layout strategies, and AI summarization formats that are now integrated into the production `functions/process-generation/` worker.
+
+**Contents:**
+- `data/` - Example research paper summaries used for testing
+- `examples/` - Standalone test scripts for compiler and generation workflows
+- `schemas/` - Zod validation schemas for generation input
+- `services/` - Service implementations:
+  - `llmService.ts` - LLM integration (DigitalOcean, OpenAI, Anthropic)
+  - `summaryCompiler.ts` - Text-to-structured-config compilation
+  - `fiboPromptBuilder.ts` - FIBO structured prompt generation
+  - `layoutEngine.ts` - Layout calculation and color scheme selection
+  - `posterGenerationOrchestrator.ts` - End-to-end generation orchestration
+- `types/` - TypeScript type definitions
+- `utils/` - Utility functions (image downloading, output saving)
+
+**Purpose:**
+This code was instrumental in:
+1. Discovering optimal FIBO prompt structures (text overlays, layout strategies)
+2. Testing different knowledge-level adaptations (beginner/intermediate/advanced)
+3. Iterating on AI summarization prompts for DigitalOcean Gradient
+4. Validating the complete pipeline before serverless deployment
+
+**Current Status:**
+The learnings and patterns from this experimental code have been integrated into `functions/process-generation/src/main.js`. This directory is preserved for reference and potential future experimentation but is **not used in production**.
 
 ## Status: Production Ready ✅
 
