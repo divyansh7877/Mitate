@@ -24,7 +24,7 @@ const {
 const EFFECTIVE_DO_API_KEY =
   DO_GRADIENT_API_KEY || DIGITALOCEAN_API_KEY || DO_API_KEY;
 const EFFECTIVE_DO_MODEL =
-  DO_GRADIENT_MODEL || DIGITALOCEAN_MODEL || 'meta-llama/llama-3-70b-instruct';
+  DO_GRADIENT_MODEL || DIGITALOCEAN_MODEL || 'llama3.3-70b-instruct';
 
 const EFFECTIVE_FIBO_API_KEY = FIBO_API_KEY || BRIA_API_KEY;
 
@@ -163,18 +163,26 @@ export default async ({ req, res, log, error: logError }) => {
       fibo_seed: Math.floor(Math.random() * 1000000),
     };
 
+    log(`FIBO_API_KEY check: ${EFFECTIVE_FIBO_API_KEY ? 'SET' : 'NOT SET'}`);
+
     if (EFFECTIVE_FIBO_API_KEY) {
+      log('FIBO_API_KEY is set, attempting to generate image with FIBO...');
       try {
+        log('Calling generateWithFibo function...');
         const result = await generateWithFibo(
           summary,
           knowledge_level,
           log,
           logError
         );
+        log(`FIBO result received: ${JSON.stringify(result)}`);
         imageUrl = result.imageUrl;
         fiboMetadata = result.metadata;
+        log(`FIBO generation successful! Image URL: ${imageUrl}`);
       } catch (fiboError) {
-        log(`FIBO generation failed: ${fiboError.message}, using placeholder`);
+        logError(`FIBO generation failed with error: ${fiboError.message}`);
+        logError(`FIBO error stack: ${fiboError.stack}`);
+        log(`Using placeholder due to FIBO error`);
         imageUrl = `https://placehold.co/1024x1024/059669/white?text=${encodeURIComponent(summary.title)}`;
       }
     } else {
@@ -182,7 +190,7 @@ export default async ({ req, res, log, error: logError }) => {
       imageUrl = `https://placehold.co/1024x1024/059669/white?text=${encodeURIComponent(summary.title)}`;
     }
 
-    log(`Image generated: ${imageUrl}`);
+    log(`Final image URL: ${imageUrl}`);
 
     // ============================================================
     // Step 5: Store Result
@@ -349,6 +357,8 @@ async function summarizeWithDigitalOceanGradient(
     const prompt = buildSummarizationPrompt(abstract, title, knowledgeLevel);
 
     log('Calling DigitalOcean Gradient AI for summarization...');
+    log(`Using model: ${EFFECTIVE_DO_MODEL}`);
+    log(`API endpoint: ${DO_GRADIENT_ENDPOINT}`);
 
     // Call DigitalOcean Gradient Serverless Inference API
     const response = await axios.post(
@@ -396,6 +406,10 @@ async function summarizeWithDigitalOceanGradient(
     };
   } catch (error) {
     logError(`DigitalOcean Gradient AI error: ${error.message}`);
+    if (error.response) {
+      logError(`DO API status: ${error.response.status}`);
+      logError(`DO API error data: ${JSON.stringify(error.response.data)}`);
+    }
     log('Falling back to basic summary generation');
     return generateFallbackSummary(title, abstract, knowledgeLevel);
   }
@@ -534,25 +548,405 @@ function generateFallbackSummary(title, abstract, knowledgeLevel) {
 }
 
 /**
- * Generate image with FIBO (simplified placeholder)
+ * Generate image with FIBO API
  */
 async function generateWithFibo(summary, knowledgeLevel, log, logError) {
-  // This is a simplified placeholder
-  // In production, this would use the full PosterGenerationOrchestrator
-  // from src/services/posterGenerationOrchestrator.ts
+  const FIBO_API_KEY = process.env.FIBO_API_KEY || process.env.BRIA_API_KEY;
+  const FIBO_BASE_URL =
+    process.env.FIBO_API_URL || 'https://engine.prod.bria-api.com/v2';
 
-  log('FIBO integration: Using placeholder (full integration pending)');
+  if (!FIBO_API_KEY) {
+    throw new Error('FIBO_API_KEY not configured');
+  }
 
-  // Return placeholder that includes the paper title
-  const encodedTitle = encodeURIComponent(summary.title.substring(0, 50));
-  const imageUrl = `https://placehold.co/1024x1024/059669/white?text=${encodedTitle}`;
+  log('Generating image with FIBO API...');
 
-  // Return both image URL and metadata
-  return {
-    imageUrl,
-    metadata: {
-      fibo_prompt: null,
-      fibo_seed: Math.floor(Math.random() * 1000000),
+  // Build a simple structured prompt
+  const structuredPrompt = buildSimpleStructuredPrompt(summary, knowledgeLevel);
+  const seed = Math.floor(Math.random() * 1000000);
+
+  try {
+    log(`Calling FIBO with seed: ${seed}`);
+    log(
+      `Structured prompt preview: ${JSON.stringify(structuredPrompt).substring(0, 500)}...`
+    );
+
+    const response = await axios.post(
+      `${FIBO_BASE_URL}/image/generate`,
+      {
+        structured_prompt: JSON.stringify(structuredPrompt),
+        seed: seed,
+        image_size: { width: 1024, height: 1024 },
+        output_format: 'png',
+        sync: true,
+        steps_num: 50,
+        enhance_image: true,
+        guidance_scale: 5,
+        aspect_ratio: '1:1',
+        fast: false,
+        negative_prompt:
+          'blurry text, illegible labels, distorted fonts, low contrast text, pixelated letters, unreadable text, fuzzy text edges, text artifacts, poor typography, unclear letters, smudged text, compressed text, watermark, low quality, amateur design, cluttered, messy',
+      },
+      {
+        headers: {
+          api_token: FIBO_API_KEY,
+          'Content-Type': 'application/json',
+        },
+        timeout: 120000, // 2 minute timeout
+      }
+    );
+
+    log('FIBO API response received');
+
+    // Handle synchronous success
+    if (response.data.result && response.data.result.image_url) {
+      log(
+        `FIBO image generated successfully: ${response.data.result.image_url}`
+      );
+      return {
+        imageUrl: response.data.result.image_url,
+        metadata: {
+          fibo_prompt: structuredPrompt,
+          fibo_seed: seed,
+        },
+      };
+    }
+
+    // Handle async response (needs polling)
+    const status = response.data.status?.toUpperCase();
+    if (
+      status === 'PENDING' ||
+      status === 'PROCESSING' ||
+      status === 'IN_PROGRESS'
+    ) {
+      log('FIBO generation started, polling for completion...');
+      const requestId = response.data.request_id;
+      const statusUrl = response.data.status_url;
+
+      // Poll for completion (max 2 minutes)
+      const imageUrl = await pollFiboCompletion(
+        requestId,
+        statusUrl,
+        FIBO_API_KEY,
+        FIBO_BASE_URL,
+        log
+      );
+
+      return {
+        imageUrl,
+        metadata: {
+          fibo_prompt: structuredPrompt,
+          fibo_seed: seed,
+        },
+      };
+    }
+
+    throw new Error(
+      `Unexpected FIBO response: ${JSON.stringify(response.data)}`
+    );
+  } catch (error) {
+    logError(`FIBO generation failed: ${error.message}`);
+    if (error.response) {
+      logError(`FIBO error status: ${error.response.status}`);
+      logError(`FIBO error data: ${JSON.stringify(error.response.data)}`);
+    }
+    throw error;
+  }
+}
+
+/**
+ * Poll FIBO API for completion
+ */
+async function pollFiboCompletion(requestId, statusUrl, apiKey, baseUrl, log) {
+  const maxAttempts = 60; // 60 attempts * 2s = 2 minutes max
+  const pollInterval = 2000;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, pollInterval));
+
+    try {
+      const response = await axios.get(
+        statusUrl || `${baseUrl}/status/${requestId}`,
+        {
+          headers: {
+            api_token: apiKey,
+          },
+          timeout: 10000,
+        }
+      );
+
+      const status = response.data.status?.toUpperCase();
+
+      if (status === 'COMPLETED' || status === 'COMPLETE') {
+        const imageUrl =
+          response.data.result?.image_url || response.data.image_url;
+        log(`FIBO generation completed: ${imageUrl}`);
+        return imageUrl;
+      }
+
+      if (status === 'FAILED' || status === 'ERROR') {
+        throw new Error(
+          `FIBO generation failed: ${response.data.error || 'Unknown error'}`
+        );
+      }
+
+      log(`FIBO generation in progress... (${attempt + 1}/${maxAttempts})`);
+    } catch (error) {
+      if (attempt === maxAttempts - 1) {
+        throw error;
+      }
+      log(`Poll attempt ${attempt + 1} error: ${error.message}`);
+    }
+  }
+
+  throw new Error('FIBO generation timeout after 2 minutes');
+}
+
+/**
+ * Calculate optimal layout based on content and knowledge level
+ */
+function calculateLayout(numConcepts, knowledgeLevel) {
+  const headerHeight = 15;
+  const footerHeight = 10;
+  const availableHeight = 100 - headerHeight - footerHeight;
+
+  // Use vertical flow for simplicity in serverless function
+  const conceptHeight = availableHeight / numConcepts;
+
+  const sections = [
+    {
+      height_percentage: headerHeight,
+      position: { x: 'center', y: '0%' },
+      content_type: 'header',
     },
+  ];
+
+  // Add concept sections
+  for (let i = 0; i < numConcepts; i++) {
+    sections.push({
+      height_percentage: conceptHeight,
+      position: {
+        x: 'center',
+        y: `${headerHeight + i * conceptHeight}%`,
+      },
+      content_type: 'concept',
+    });
+  }
+
+  // Add footer
+  sections.push({
+    height_percentage: footerHeight,
+    position: { x: 'center', y: `${100 - footerHeight}%` },
+    content_type: 'footer',
+  });
+
+  return {
+    type: 'vertical_flow',
+    sections,
+    margins: { top: 5, right: 10, bottom: 5, left: 10 },
+    spacing: 2,
+  };
+}
+
+/**
+ * Select color scheme based on knowledge level
+ */
+function selectColorScheme(knowledgeLevel) {
+  const schemes = {
+    beginner: {
+      primary: '#4299E1',
+      secondary: '#9F7AEA',
+      accent: '#48BB78',
+      background: '#FFFFFF',
+      text: '#2D3748',
+    },
+    intermediate: {
+      primary: '#2C5282',
+      secondary: '#2C7A7B',
+      accent: '#D69E2E',
+      background: '#F7FAFC',
+      text: '#1A202C',
+    },
+    advanced: {
+      primary: '#1A365D',
+      secondary: '#2D3748',
+      accent: '#4A5568',
+      background: '#EDF2F7',
+      text: '#000000',
+    },
+  };
+  return schemes[knowledgeLevel] || schemes.beginner;
+}
+
+/**
+ * Build a structured prompt for FIBO using layout engine logic
+ */
+function buildSimpleStructuredPrompt(summary, knowledgeLevel) {
+  const concepts = summary.key_concepts || [];
+  const layout = calculateLayout(concepts.length, knowledgeLevel);
+  const colorScheme = selectColorScheme(knowledgeLevel);
+
+  const levelDescriptor = {
+    beginner:
+      'friendly and approachable with simple visual metaphors, suitable for general audience',
+    intermediate:
+      'professional and technical with diagrams and practical examples, for engineers and practitioners',
+    advanced:
+      'academic and dense with mathematical notation and detailed methodology, for researchers',
+  };
+
+  // Build objects array
+  const objects = [];
+
+  // Header object
+  const headerSection = layout.sections.find(
+    (s) => s.content_type === 'header'
+  );
+  if (headerSection) {
+    objects.push({
+      description: `Main header banner section containing the title "${summary.title}" in LARGE, BOLD, CRYSTAL-CLEAR typography. Ultra-professional design with sharp edges and high contrast. All text must be perfectly legible and sharp.`,
+      location: `top-center, starting at ${headerSection.position.y}`,
+      relationship: 'Primary visual anchor, introduces the research topic',
+      relative_size: `${headerSection.height_percentage}% of total vertical space`,
+      shape_and_color: `Rounded rectangle banner with gradient from ${colorScheme.primary} to ${colorScheme.secondary}, high contrast white text`,
+      texture:
+        'flat vector-style with subtle gradient, perfectly smooth finish',
+      appearance_details:
+        'Razor-sharp edges, modern sans-serif typography, professional polish',
+      orientation: 'horizontal banner spanning full width',
+    });
+  }
+
+  // Concept objects
+  const conceptSections = layout.sections.filter(
+    (s) => s.content_type === 'concept'
+  );
+  concepts.forEach((concept, idx) => {
+    if (conceptSections[idx]) {
+      const section = conceptSections[idx];
+      const visualMetaphor = concept.visual_metaphor || concept.name;
+
+      objects.push({
+        description: `Section visualizing "${concept.name}" as: ${visualMetaphor}. Clean, sharp visual with crystal-clear typography. Professional illustration style.`,
+        location: `${section.position.y} from top, ${section.position.x} horizontally`,
+        relationship: `Concept ${idx + 1} of ${concepts.length}, sequentially connected`,
+        relative_size: `${section.height_percentage}% of vertical space`,
+        shape_and_color: `Clean rounded container with light background, accent colors from ${colorScheme.accent}, sharp edges`,
+        texture: 'flat vector illustration style with subtle depth',
+        appearance_details: `Large numbered label '${idx + 1}' in circle, excellent visual hierarchy with sharp text rendering`,
+        orientation: 'horizontal section with internal layout',
+      });
+    }
+  });
+
+  // Footer object
+  const footerSection = layout.sections.find(
+    (s) => s.content_type === 'footer'
+  );
+  if (footerSection) {
+    objects.push({
+      description: `Footer section with key takeaway: "${summary.key_finding}" and source attribution. Professional citation format.`,
+      location: `bottom of infographic, ${footerSection.position.y}`,
+      relationship: 'Concluding section summarizing main insight',
+      relative_size: `${footerSection.height_percentage}% of vertical space`,
+      shape_and_color: `Rounded rectangle with background ${colorScheme.primary}, white text for high contrast`,
+      texture: 'flat, solid color',
+      appearance_details: 'Key finding prominently displayed with citation',
+      orientation: 'horizontal footer spanning full width',
+    });
+  }
+
+  // Build text_render array
+  const textElements = [
+    {
+      text: summary.title.toUpperCase(),
+      location: 'top-center',
+      size: 'large within frame',
+      color: '#FFFFFF',
+      font: 'bold sans-serif',
+      appearance_details:
+        'OVERLAY TEXT LAYER: Large, bold, all caps title. Render as vector/overlay text on top of background, NOT diffusion-generated. High contrast white text with crisp edges, 72pt equivalent.',
+    },
+    {
+      text: summary.one_liner,
+      location: 'top-center, below title',
+      size: 'medium',
+      color: '#FFFFFF',
+      font: 'sans-serif',
+      appearance_details:
+        'OVERLAY TEXT LAYER: Subtitle rendered as vector overlay. White text with 95% opacity, 24pt equivalent.',
+    },
+  ];
+
+  // Add concept text elements
+  concepts.forEach((concept, idx) => {
+    const truncatedExplanation =
+      concept.explanation.length > 150
+        ? concept.explanation.substring(0, 147) + '...'
+        : concept.explanation;
+
+    textElements.push({
+      text: `${idx + 1}. ${concept.name.toUpperCase()}`,
+      location: `section ${idx + 1}, left-aligned`,
+      size: 'large',
+      color: colorScheme.text,
+      font: 'bold sans-serif',
+      appearance_details:
+        'OVERLAY TEXT LAYER: Bold heading. Sharp overlay text at 28pt equivalent with high contrast.',
+    });
+
+    textElements.push({
+      text: truncatedExplanation,
+      location: `section ${idx + 1}, below heading`,
+      size: 'medium',
+      color: colorScheme.text,
+      font: 'sans-serif',
+      appearance_details:
+        'OVERLAY TEXT LAYER: Body text at 16pt equivalent with line height 1.6. Sharp rendering, max width 80%.',
+    });
+  });
+
+  // Add footer text
+  const truncatedFinding =
+    summary.key_finding && summary.key_finding.length > 100
+      ? summary.key_finding.substring(0, 97) + '...'
+      : summary.key_finding || summary.real_world_impact;
+
+  textElements.push({
+    text: `KEY INSIGHT: ${truncatedFinding}`,
+    location: 'bottom-center',
+    size: 'large',
+    color: '#FFFFFF',
+    font: 'bold sans-serif',
+    appearance_details:
+      'OVERLAY TEXT LAYER: Bold callout at 20pt equivalent. High contrast white text with sharp rendering.',
+  });
+
+  return {
+    short_description: `A HIGH-RESOLUTION, professional-quality educational infographic explaining "${summary.title}". The design uses a ${layout.type} layout with ${concepts.length} main concept sections. Style is ${levelDescriptor[knowledgeLevel]}. CRITICAL: This uses OVERLAY TEXT RENDERING - all text elements should be treated as vector overlays, NOT diffusion-generated text. Text must be crystal clear, sharp, and fully legible. Print-ready quality.`,
+    background_setting: `Clean ${colorScheme.background} background with minimal texture. ${knowledgeLevel === 'beginner' ? 'Bright and welcoming' : knowledgeLevel === 'intermediate' ? 'Professional with subtle grid' : 'Academic and minimal'}. PERFECTLY SMOOTH with no artifacts.`,
+    objects: objects,
+    text_render: textElements,
+    lighting: {
+      conditions: 'bright, even studio lighting',
+      direction: 'soft, diffused lighting from multiple sources',
+      shadows: 'Minimal, soft shadows for depth separation only',
+    },
+    aesthetics: {
+      composition: `${layout.type} layout with clear hierarchy and ${layout.margins.top}% margins`,
+      color_scheme: `Primary: ${colorScheme.primary}, Accent: ${colorScheme.accent}, Background: ${colorScheme.background}`,
+      mood_atmosphere: `${knowledgeLevel === 'beginner' ? 'Educational, approachable, friendly, inspiring' : knowledgeLevel === 'intermediate' ? 'Professional, trustworthy, modern, practical' : 'Scholarly, authoritative, rigorous, intellectual'}`,
+      preference_score: 'very high',
+      aesthetic_score: 'very high',
+    },
+    photographic_characteristics: {
+      depth_of_field: 'deep',
+      focus: 'sharp focus on all elements',
+      camera_angle: 'eye-level',
+      lens_focal_length: 'standard lens (e.g., 50mm)',
+    },
+    style_medium: 'digital illustration',
+    context: `This is an educational infographic designed for ${knowledgeLevel === 'beginner' ? 'general audience with no technical background' : knowledgeLevel === 'intermediate' ? 'engineers and practitioners' : 'researchers and academics'}, intended for social media sharing, presentations, and teaching materials.`,
+    artistic_style: `${knowledgeLevel === 'beginner' ? 'minimalist, modern infographic, flat design, friendly illustration, colorful' : knowledgeLevel === 'intermediate' ? 'professional infographic, technical illustration, clean design, modern' : 'academic infographic, scholarly design, precise diagrams, journal-quality, muted colors'}, SHARP LINES, HIGH RESOLUTION, crystal-clear text, professional quality, print-ready`,
   };
 }
