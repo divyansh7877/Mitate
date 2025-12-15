@@ -480,6 +480,7 @@
       "$id": "mitate-frontend",
       "name": "Mitate Frontend",
       "domain": "",
+      "framework": "vite",
       "rootDirectory": "dist",
       "errorDocument": "index.html",
       "repository": {
