@@ -27,7 +27,7 @@ Mitate automatically converts academic research papers into visual explainers us
 Generates a single comprehensive infographic with all key concepts and text overlays in one image.
 
 ### Simple Visuals Mode (Recommended)
-Generates 3-7 text-free visual icons (one per concept) in an interactive carousel. Text explanations appear below each image in the UI. This mode avoids FIBO's text rendering limitations.
+Generates 3-7 text-free visual icons (one per concept) in an interactive carousel. Text explanations appear below each image in the UI. This mode leans into FIBO's strengths as an image model and avoids text rendering limitations.
 
 **Toggle via environment variable**: `GENERATION_MODE=simple_visuals` (or `infographic`)
 
@@ -134,7 +134,7 @@ Colors and visual metaphors also adapt to the selected knowledge level.
 
 ## ⚠️ Known Limitations
 
-- **FIBO Text Rendering**: Diffusion model may render text artifacts despite negative prompts. Simple Visuals mode minimizes this.
+- **FIBO Text Rendering**: Diffusion models often may render text artifacts despite negative prompts. Simple Visuals mode minimizes this using FIBO's prompting capabilities.
 - **Token Limits**: Very complex papers may hit the 4000 token limit and fall back to basic summaries.
 - **FIBO Timeouts**: Occasional 504 errors during peak load (fallback to placeholder images)
 
